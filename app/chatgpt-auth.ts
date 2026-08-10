@@ -1,3 +1,5 @@
+import { env } from "cloudflare:workers";
+import { createRemoteJWKSet, jwtVerify, type JWTVerifyGetKey } from "jose";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
@@ -17,9 +19,53 @@ const PERCENT_ENCODED_UTF8 = "percent-encoded-utf-8";
 const SIGN_IN_PATH = "/signin-with-chatgpt";
 const SIGN_OUT_PATH = "/signout-with-chatgpt";
 const CALLBACK_PATH = "/callback";
+const CF_ACCESS_JWT_HEADER = "cf-access-jwt-assertion";
+const accessKeySets = new Map<string, JWTVerifyGetKey>();
+
+function getAccessKeySet(teamDomain: string): JWTVerifyGetKey {
+  const cached = accessKeySets.get(teamDomain);
+  if (cached) return cached;
+  const keySet = createRemoteJWKSet(
+    new URL(`${teamDomain}/cdn-cgi/access/certs`),
+  );
+  accessKeySets.set(teamDomain, keySet);
+  return keySet;
+}
+
+async function getCloudflareAccessUser(
+  requestHeaders: Headers,
+): Promise<ChatGPTUser | null> {
+  const token = requestHeaders.get(CF_ACCESS_JWT_HEADER);
+  if (!token) return null;
+
+  const teamDomain = env.CF_ACCESS_TEAM_DOMAIN?.trim().replace(/\/$/, "");
+  const audience = env.CF_ACCESS_AUD?.trim();
+  if (!teamDomain || !audience) return null;
+
+  try {
+    const { payload } = await jwtVerify(token, getAccessKeySet(teamDomain), {
+      issuer: teamDomain,
+      audience,
+    });
+    if (typeof payload.email !== "string" || !payload.email.trim()) return null;
+    const email = payload.email.trim().toLowerCase();
+    const subject = typeof payload.sub === "string" ? payload.sub : email;
+    return {
+      userId: `cloudflare:${subject}`,
+      displayName: email,
+      email,
+      fullName: null,
+    };
+  } catch {
+    return null;
+  }
+}
 
 export async function getChatGPTUser(): Promise<ChatGPTUser | null> {
   const requestHeaders = await headers();
+  if (requestHeaders.has(CF_ACCESS_JWT_HEADER)) {
+    return getCloudflareAccessUser(requestHeaders);
+  }
   const userId = requestHeaders.get(USER_ID_HEADER);
   const email = requestHeaders.get(USER_EMAIL_HEADER);
   if (!userId || !email) return null;

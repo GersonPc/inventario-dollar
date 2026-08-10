@@ -27,7 +27,8 @@ La primera versión funcional incluye:
 - React y TypeScript para la interfaz.
 - Vinext para ejecutar la aplicación web.
 - Drizzle ORM para el acceso tipado a datos.
-- Cloudflare D1 como almacenamiento persistente cuando definamos el modelo.
+- Cloudflare D1 como almacenamiento persistente.
+- Cloudflare Workers para la aplicación y Cloudflare Access para el ingreso por correo.
 
 ## Requisitos
 
@@ -54,6 +55,21 @@ npm test
 - `npm test`: ejecuta la compilación y las pruebas
 - `npm run lint`: revisa la calidad del código
 - `npm run db:generate`: genera migraciones después de modificar el esquema
+- `npm run cf:typegen`: actualiza los tipos de los bindings de Cloudflare
+- `npm run db:migrate:cloudflare`: aplica las migraciones pendientes en D1
+- `npm run deploy:cloudflare`: compila y publica el Worker
+
+## Producción en Cloudflare
+
+La aplicación está publicada en
+<https://inventario-dollar.fybertechdisney.workers.dev> y protegida por
+Cloudflare Access. El usuario escribe su correo y recibe un PIN temporal; no
+necesita una cuenta de Cloudflare.
+
+Access comprueba la identidad y la aplicación mantiene una segunda lista
+cerrada de correos autorizados. El administrador inicial es
+`gerpxd@gmail.com`; desde el apartado **Usuarios** puede autorizar otros
+correos y asignarles los roles administrador, operador o consulta.
 
 ## Flujo de colaboración
 

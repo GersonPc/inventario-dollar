@@ -29,21 +29,30 @@ test("renders the Inventory Dollar application shell", async () => {
 });
 
 test("declares durable storage, protected credentials and closed user access", async () => {
-  const [hosting, schema, cryptoSource, authSource, apiSource, csvTemplate] = await Promise.all([
+  const [hosting, wrangler, schema, cryptoSource, authSource, accessSource, apiSource, csvTemplate] = await Promise.all([
     readFile(new URL("../.openai/hosting.json", import.meta.url), "utf8"),
+    readFile(new URL("../wrangler.jsonc", import.meta.url), "utf8"),
     readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
     readFile(new URL("../lib/inventory-crypto.ts", import.meta.url), "utf8"),
     readFile(new URL("../lib/inventory-auth.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/chatgpt-auth.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/inventory/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../public/plantilla-inventario.csv", import.meta.url), "utf8"),
   ]);
 
   assert.match(hosting, /"d1":\s*"DB"/);
+  assert.match(wrangler, /"binding":\s*"DB"/);
+  assert.match(wrangler, /"CF_ACCESS_AUD":\s*"[a-f0-9]{64}"/);
+  assert.match(wrangler, /"CF_ACCESS_TEAM_DOMAIN":\s*"https:\/\/[a-z0-9-]+\.cloudflareaccess\.com"/);
   assert.match(schema, /idx_equipment_barcode_unique/);
   assert.match(schema, /equipmentMovements/);
   assert.match(cryptoSource, /AES-GCM/);
   assert.match(authSource, /INVENTORY_ADMIN_EMAIL/);
   assert.match(authSource, /if \(email !== getBootstrapAdminEmail\(\)\) return null/);
+  assert.match(accessSource, /cf-access-jwt-assertion/);
+  assert.match(accessSource, /createRemoteJWKSet/);
+  assert.match(accessSource, /issuer: teamDomain/);
+  assert.match(accessSource, /audience/);
   assert.match(apiSource, /payload\.action === "inviteUser"/);
   assert.match(apiSource, /payload\.action === "toggleUser"/);
   assert.match(csvTemplate, /Codigo de barras/);

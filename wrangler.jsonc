@@ -1,0 +1,27 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "inventario-dollar",
+  "main": "dist/server/index.js",
+  "compatibility_date": "2026-08-10",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "dist/client",
+    "binding": "ASSETS"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "inventario-dollar-db",
+      "database_id": "26f38e1e-8072-4a09-b4ec-4575415f37ba",
+      "migrations_dir": "drizzle"
+    }
+  ],
+  "vars": {
+    "CF_ACCESS_AUD": "1f3c1c9fce8e8354f1f095c0afdd6856b60b1beade0f320c16bf65e5e897a891",
+    "CF_ACCESS_TEAM_DOMAIN": "https://icy-silence-7f17.cloudflareaccess.com",
+    "INVENTORY_ADMIN_EMAIL": "gerpxd@gmail.com"
+  },
+  "observability": {
+    "enabled": true
+  }
+}

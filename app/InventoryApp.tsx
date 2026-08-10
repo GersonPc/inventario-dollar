@@ -579,8 +579,8 @@ export function InventoryApp() {
           <div className="brand-mark" style={{ margin: "0 auto 18px" }}>D</div>
           <h1>Inventario protegido</h1>
           <p className="page-description">{error || "Inicia sesión para continuar."}</p>
-          <a className="primary-button" href="/signin-with-chatgpt?return_to=%2F" style={{ display: "inline-flex", marginTop: 20, textDecoration: "none" }}>
-            Iniciar sesión
+          <a className="primary-button" href="/cdn-cgi/access/logout" style={{ display: "inline-flex", marginTop: 20, textDecoration: "none" }}>
+            Cambiar de correo
           </a>
         </div>
       </main>
