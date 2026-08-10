@@ -710,6 +710,10 @@ p {
   color: #315973;
 }
 
+.batch-entry-note {
+  margin-bottom: 16px;
+}
+
 .error-banner {
   margin-bottom: 16px;
   background: var(--red-soft);

@@ -308,6 +308,7 @@ export function InventoryApp() {
   const [csvName, setCsvName] = useState("");
   const [dragging, setDragging] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
+  const barcodeInput = useRef<HTMLInputElement>(null);
 
   const loadInventory = useCallback(async () => {
     setError("");
@@ -411,6 +412,7 @@ export function InventoryApp() {
   const submitEquipment = async (event: FormEvent) => {
     event.preventDefault();
     if (!editing) return;
+    const isNewEquipment = !editing.id;
     setSaving(true);
     setError("");
     try {
@@ -421,9 +423,18 @@ export function InventoryApp() {
           storeId: editing.storeId ? Number(editing.storeId) : null,
         },
       });
-      setEditing(null);
-      setNotice(editing.id ? "Equipo actualizado correctamente." : "Equipo registrado correctamente.");
+      setNotice(
+        isNewEquipment
+          ? "Equipo registrado. Escanea el siguiente código para continuar con los mismos datos."
+          : "Equipo actualizado correctamente.",
+      );
       await loadInventory();
+      if (isNewEquipment) {
+        window.requestAnimationFrame(() => {
+          barcodeInput.current?.focus();
+          barcodeInput.current?.select();
+        });
+      }
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "No se pudo guardar.");
     } finally {
@@ -849,8 +860,9 @@ export function InventoryApp() {
           <form className="modal" onSubmit={submitEquipment} role="dialog" aria-modal="true" aria-labelledby="equipment-form-title">
             <div className="modal-header"><div><p className="eyebrow">{editing.id ? "Ficha del equipo" : "Nuevo ingreso"}</p><h2 id="equipment-form-title">{editing.id ? editing.model || "Editar equipo" : "Registrar equipo"}</h2></div><button className="close-button" type="button" onClick={() => setEditing(null)} aria-label="Cerrar">×</button></div>
             <div className="modal-body">
+              {!editing.id && writable ? <div className="notice batch-entry-note">Captura continua activa: después de guardar conservaremos los datos y seleccionaremos el código para recibir el siguiente escaneo.</div> : null}
               <div className="form-grid">
-                <FormField label="Código de barras" id="equipment-barcode"><input id="equipment-barcode" className="input" value={editing.barcode} onChange={(event) => setEditing({ ...editing, barcode: event.target.value })} required readOnly={!writable} /></FormField>
+                <FormField label="Código de barras" id="equipment-barcode"><input ref={barcodeInput} id="equipment-barcode" className="input" value={editing.barcode} onChange={(event) => setEditing({ ...editing, barcode: event.target.value })} required readOnly={!writable} /></FormField>
                 <FormField label="Fecha de ingreso" id="received-at"><input id="received-at" type="date" className="input" value={editing.receivedAt} onChange={(event) => setEditing({ ...editing, receivedAt: event.target.value })} required readOnly={!writable} /></FormField>
                 <FormField label="Modelo" id="equipment-model"><input id="equipment-model" className="input" value={editing.model} onChange={(event) => setEditing({ ...editing, model: event.target.value })} required readOnly={!writable} /></FormField>
                 <FormField label="Tipo de dispositivo" id="device-type"><input id="device-type" className="input" list="device-types" value={editing.deviceType} onChange={(event) => setEditing({ ...editing, deviceType: event.target.value })} required readOnly={!writable} /><datalist id="device-types">{deviceTypes.map((type) => <option key={type} value={type} />)}</datalist></FormField>
@@ -865,7 +877,7 @@ export function InventoryApp() {
                 <FormField label="Notas" id="notes" full><textarea id="notes" className="textarea" value={editing.notes} onChange={(event) => setEditing({ ...editing, notes: event.target.value })} readOnly={!writable} placeholder="Observaciones o detalles adicionales" /></FormField>
               </div>
             </div>
-            <div className="modal-actions"><button className="secondary-button" type="button" onClick={() => setEditing(null)}>Cerrar</button>{writable ? <button className="primary-button" type="submit" disabled={saving}>{saving ? "Guardando…" : "Guardar equipo"}</button> : null}</div>
+            <div className="modal-actions"><button className="secondary-button" type="button" onClick={() => setEditing(null)}>Cerrar</button>{writable ? <button className="primary-button" type="submit" disabled={saving}>{saving ? "Guardando…" : editing.id ? "Guardar cambios" : "Guardar y continuar"}</button> : null}</div>
           </form>
         </div>
       ) : null}

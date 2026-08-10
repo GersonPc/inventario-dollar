@@ -49,3 +49,18 @@ test("declares durable storage, protected credentials and closed user access", a
   assert.match(csvTemplate, /Codigo de barras/);
   assert.match(csvTemplate, /MAC Address/);
 });
+
+test("keeps the equipment dialog ready for continuous barcode capture", async () => {
+  const appSource = await readFile(
+    new URL("../app/InventoryApp.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(appSource, /Captura continua activa/);
+  assert.match(appSource, /barcodeInput\.current\?\.select\(\)/);
+  assert.match(appSource, /Guardar y continuar/);
+  assert.doesNotMatch(
+    appSource.match(/const submitEquipment[\s\S]*?const revealCredential/)?.[0] ?? "",
+    /setEditing\(null\)/,
+  );
+});
