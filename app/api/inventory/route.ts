@@ -1,0 +1,420 @@
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  isNotNull,
+  sql,
+} from "drizzle-orm";
+import { getDb } from "@/db";
+import {
+  equipment,
+  equipmentMovements,
+  stores,
+  users,
+} from "@/db/schema";
+import { canWrite, getInventoryUser, type InventoryRole } from "@/lib/inventory-auth";
+import { decryptCredential, encryptCredential } from "@/lib/inventory-crypto";
+
+type EquipmentInput = {
+  id?: number;
+  barcode?: string;
+  model?: string;
+  deviceType?: string;
+  receivedAt?: string;
+  delivered?: boolean;
+  condition?: "working" | "not_working" | "unknown";
+  storeId?: number | null;
+  storeNumber?: string;
+  storeName?: string;
+  deliveredAt?: string | null;
+  macAddress?: string | null;
+  ipAddress?: string | null;
+  password?: string | null;
+  notes?: string | null;
+};
+
+type ActionPayload = {
+  action?: string;
+  equipment?: EquipmentInput;
+  records?: EquipmentInput[];
+  equipmentId?: number;
+  store?: { id?: number; storeNumber?: string; name?: string };
+  userId?: string;
+  role?: InventoryRole;
+};
+
+const validRoles = new Set<InventoryRole>(["admin", "operator", "viewer"]);
+const validConditions = new Set(["working", "not_working", "unknown"]);
+
+function clean(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function nullable(value: unknown): string | null {
+  const result = clean(value);
+  return result || null;
+}
+
+function normalizeMac(value: unknown): string | null {
+  const result = clean(value).replace(/-/g, ":").toUpperCase();
+  return result || null;
+}
+
+function equipmentError(input: EquipmentInput): string | null {
+  if (!clean(input.barcode)) return "El código de barras es obligatorio.";
+  if (!clean(input.model)) return "El modelo es obligatorio.";
+  if (!clean(input.deviceType)) return "El tipo de dispositivo es obligatorio.";
+  if (!clean(input.receivedAt)) return "La fecha de ingreso es obligatoria.";
+  if (input.delivered && !input.storeId && !clean(input.storeNumber)) {
+    return "Selecciona una tienda para marcar el equipo como entregado.";
+  }
+  return null;
+}
+
+function jsonError(message: string, status = 400) {
+  return Response.json({ error: message }, { status });
+}
+
+async function resolveStoreId(
+  input: EquipmentInput,
+): Promise<number | null> {
+  if (typeof input.storeId === "number" && Number.isFinite(input.storeId)) {
+    return input.storeId;
+  }
+
+  const storeNumber = clean(input.storeNumber);
+  const storeName = clean(input.storeName);
+  if (!storeNumber) return null;
+  if (!storeName) throw new Error(`Falta el nombre de la tienda ${storeNumber}.`);
+
+  const db = getDb();
+  await db
+    .insert(stores)
+    .values({ storeNumber, name: storeName })
+    .onConflictDoUpdate({
+      target: stores.storeNumber,
+      set: { name: storeName, updatedAt: new Date().toISOString() },
+    });
+  const [store] = await db
+    .select({ id: stores.id })
+    .from(stores)
+    .where(eq(stores.storeNumber, storeNumber))
+    .limit(1);
+  return store?.id ?? null;
+}
+
+export async function GET() {
+  try {
+    const currentUser = await getInventoryUser();
+    if (!currentUser || !currentUser.active) {
+      return jsonError("Necesitas iniciar sesión para consultar el inventario.", 401);
+    }
+
+    const db = getDb();
+    const equipmentRows = await db
+      .select({
+        id: equipment.id,
+        barcode: equipment.barcode,
+        model: equipment.model,
+        deviceType: equipment.deviceType,
+        receivedAt: equipment.receivedAt,
+        delivered: equipment.delivered,
+        condition: equipment.condition,
+        storeId: equipment.storeId,
+        storeNumber: stores.storeNumber,
+        storeName: stores.name,
+        deliveredAt: equipment.deliveredAt,
+        macAddress: equipment.macAddress,
+        ipAddress: equipment.ipAddress,
+        notes: equipment.notes,
+        hasCredential: isNotNull(equipment.credentialCiphertext),
+        createdAt: equipment.createdAt,
+        updatedAt: equipment.updatedAt,
+      })
+      .from(equipment)
+      .leftJoin(stores, eq(equipment.storeId, stores.id))
+      .orderBy(desc(equipment.updatedAt), desc(equipment.id))
+      .limit(5000);
+
+    const storeRows = await db.select().from(stores).orderBy(asc(stores.storeNumber));
+    const userRows =
+      currentUser.role === "admin"
+        ? await db
+            .select({
+              id: users.id,
+              email: users.email,
+              displayName: users.displayName,
+              role: users.role,
+              active: users.active,
+            })
+            .from(users)
+            .orderBy(asc(users.displayName))
+        : [];
+
+    return Response.json({
+      currentUser: {
+        id: currentUser.id,
+        email: currentUser.email,
+        displayName: currentUser.displayName,
+        role: currentUser.role,
+      },
+      equipment: equipmentRows,
+      stores: storeRows,
+      users: userRows,
+    });
+  } catch (error) {
+    return jsonError(
+      error instanceof Error ? error.message : "No se pudo cargar el inventario.",
+      500,
+    );
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const currentUser = await getInventoryUser();
+    if (!currentUser || !currentUser.active) {
+      return jsonError("Necesitas iniciar sesión.", 401);
+    }
+
+    const payload = (await request.json()) as ActionPayload;
+    const db = getDb();
+
+    if (payload.action === "revealCredential") {
+      if (currentUser.role !== "admin") {
+        return jsonError("Solo un administrador puede ver contraseñas.", 403);
+      }
+      const equipmentId = Number(payload.equipmentId);
+      const [row] = await db
+        .select({ credential: equipment.credentialCiphertext })
+        .from(equipment)
+        .where(eq(equipment.id, equipmentId))
+        .limit(1);
+      if (!row?.credential) return Response.json({ password: null });
+      return Response.json({ password: await decryptCredential(row.credential) });
+    }
+
+    if (payload.action === "updateRole") {
+      if (currentUser.role !== "admin") {
+        return jsonError("Solo un administrador puede cambiar roles.", 403);
+      }
+      const targetUserId = clean(payload.userId);
+      const role = payload.role;
+      if (!targetUserId || !role || !validRoles.has(role)) {
+        return jsonError("Usuario o rol inválido.");
+      }
+      if (targetUserId === currentUser.id && role !== "admin") {
+        const [summary] = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(users)
+          .where(and(eq(users.role, "admin"), eq(users.active, true)));
+        if (Number(summary?.count ?? 0) <= 1) {
+          return jsonError("Debe permanecer al menos un administrador.");
+        }
+      }
+      await db
+        .update(users)
+        .set({ role, updatedAt: new Date().toISOString() })
+        .where(eq(users.id, targetUserId));
+      return Response.json({ ok: true });
+    }
+
+    if (!canWrite(currentUser.role)) {
+      return jsonError("Tu rol permite consultar, pero no modificar datos.", 403);
+    }
+
+    if (payload.action === "saveStore") {
+      const input = payload.store ?? {};
+      const storeNumber = clean(input.storeNumber);
+      const name = clean(input.name);
+      if (!storeNumber || !name) {
+        return jsonError("El número y el nombre de tienda son obligatorios.");
+      }
+      await db
+        .insert(stores)
+        .values({ storeNumber, name })
+        .onConflictDoUpdate({
+          target: stores.storeNumber,
+          set: { name, updatedAt: new Date().toISOString() },
+        });
+      return Response.json({ ok: true });
+    }
+
+    if (payload.action === "saveEquipment") {
+      const input = payload.equipment ?? {};
+      const validationError = equipmentError(input);
+      if (validationError) return jsonError(validationError);
+      const storeId = await resolveStoreId(input);
+      const now = new Date().toISOString();
+      const values = {
+        barcode: clean(input.barcode),
+        model: clean(input.model),
+        deviceType: clean(input.deviceType),
+        receivedAt: clean(input.receivedAt),
+        delivered: Boolean(input.delivered),
+        condition: validConditions.has(input.condition ?? "")
+          ? input.condition!
+          : ("unknown" as const),
+        storeId,
+        deliveredAt: input.delivered
+          ? nullable(input.deliveredAt) ?? now.slice(0, 10)
+          : null,
+        macAddress: normalizeMac(input.macAddress),
+        ipAddress: nullable(input.ipAddress),
+        notes: nullable(input.notes),
+        updatedBy: currentUser.id,
+        updatedAt: now,
+      };
+
+      const inputId = Number(input.id);
+      if (Number.isFinite(inputId) && inputId > 0) {
+        const [before] = await db
+          .select()
+          .from(equipment)
+          .where(eq(equipment.id, inputId))
+          .limit(1);
+        if (!before) return jsonError("El equipo ya no existe.", 404);
+        const credentialCiphertext = clean(input.password)
+          ? await encryptCredential(clean(input.password))
+          : before.credentialCiphertext;
+        await db
+          .update(equipment)
+          .set({ ...values, credentialCiphertext })
+          .where(eq(equipment.id, inputId));
+        const movementAction =
+          !before.delivered && values.delivered
+            ? "delivered"
+            : before.delivered && !values.delivered
+              ? "returned"
+              : "updated";
+        await db.insert(equipmentMovements).values({
+          equipmentId: inputId,
+          action: movementAction,
+          storeId,
+          actorId: currentUser.id,
+          details: JSON.stringify({ barcode: values.barcode }),
+        });
+        return Response.json({ ok: true, id: inputId });
+      }
+
+      const credentialCiphertext = clean(input.password)
+        ? await encryptCredential(clean(input.password))
+        : null;
+      const [created] = await db
+        .insert(equipment)
+        .values({
+          ...values,
+          credentialCiphertext,
+          createdBy: currentUser.id,
+        })
+        .returning({ id: equipment.id });
+      await db.insert(equipmentMovements).values({
+        equipmentId: created.id,
+        action: values.delivered ? "delivered" : "received",
+        storeId,
+        actorId: currentUser.id,
+        details: JSON.stringify({ barcode: values.barcode }),
+      });
+      return Response.json({ ok: true, id: created.id }, { status: 201 });
+    }
+
+    if (payload.action === "importCsv") {
+      const records = Array.isArray(payload.records) ? payload.records.slice(0, 5000) : [];
+      if (!records.length) return jsonError("El archivo no contiene registros.");
+
+      let createdCount = 0;
+      let updatedCount = 0;
+      let skippedCount = 0;
+      const errors: string[] = [];
+
+      for (let index = 0; index < records.length; index += 1) {
+        const input = records[index];
+        const validationError = equipmentError(input);
+        if (validationError) {
+          skippedCount += 1;
+          if (errors.length < 20) errors.push(`Fila ${index + 2}: ${validationError}`);
+          continue;
+        }
+
+        try {
+          const storeId = await resolveStoreId(input);
+          const barcode = clean(input.barcode);
+          const [existing] = await db
+            .select()
+            .from(equipment)
+            .where(eq(equipment.barcode, barcode))
+            .limit(1);
+          const password = clean(input.password);
+          const credentialCiphertext = password
+            ? await encryptCredential(password)
+            : existing?.credentialCiphertext ?? null;
+          const now = new Date().toISOString();
+          const recordValues = {
+            barcode,
+            model: clean(input.model),
+            deviceType: clean(input.deviceType),
+            receivedAt: clean(input.receivedAt),
+            delivered: Boolean(input.delivered),
+            condition: validConditions.has(input.condition ?? "")
+              ? input.condition!
+              : ("unknown" as const),
+            storeId,
+            deliveredAt: input.delivered
+              ? nullable(input.deliveredAt) ?? now.slice(0, 10)
+              : null,
+            macAddress: normalizeMac(input.macAddress),
+            ipAddress: nullable(input.ipAddress),
+            credentialCiphertext,
+            notes: nullable(input.notes),
+            updatedBy: currentUser.id,
+            updatedAt: now,
+          };
+
+          let equipmentId: number;
+          if (existing) {
+            await db
+              .update(equipment)
+              .set(recordValues)
+              .where(eq(equipment.id, existing.id));
+            equipmentId = existing.id;
+            updatedCount += 1;
+          } else {
+            const [created] = await db
+              .insert(equipment)
+              .values({ ...recordValues, createdBy: currentUser.id })
+              .returning({ id: equipment.id });
+            equipmentId = created.id;
+            createdCount += 1;
+          }
+
+          await db.insert(equipmentMovements).values({
+            equipmentId,
+            action: "imported",
+            storeId,
+            actorId: currentUser.id,
+            details: JSON.stringify({ row: index + 2 }),
+          });
+        } catch (error) {
+          skippedCount += 1;
+          if (errors.length < 20) {
+            errors.push(
+              `Fila ${index + 2}: ${error instanceof Error ? error.message : "error inesperado"}`,
+            );
+          }
+        }
+      }
+
+      return Response.json({ createdCount, updatedCount, skippedCount, errors });
+    }
+
+    return jsonError("Acción no reconocida.");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Error inesperado.";
+    const status = /UNIQUE constraint failed|unique/i.test(message) ? 409 : 500;
+    return jsonError(
+      status === 409 ? "El código de barras ya está registrado." : message,
+      status,
+    );
+  }
+}

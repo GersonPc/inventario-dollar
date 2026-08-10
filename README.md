@@ -4,8 +4,15 @@ Sistema web de inventario para uso interno y colaboración mediante GitHub.
 
 ## Estado del proyecto
 
-El proyecto se encuentra en su etapa inicial. La estructura técnica está lista
-para definir los módulos, los datos del inventario y los permisos de usuario.
+La primera versión funcional incluye:
+
+- inventario individual por código de barras;
+- compatibilidad con lectores USB que escriben el código y envían Enter;
+- tiendas, entregas, fecha de ingreso y condición del equipo;
+- modelo, tipo, MAC Address, IP, contraseña cifrada y notas;
+- importación CSV con vista previa y actualización por código de barras;
+- roles de administrador, operador y consulta;
+- historial de movimientos para auditoría.
 
 ## Principios de diseño
 
@@ -56,3 +63,10 @@ npm test
 
 No guardes contraseñas, tokens ni archivos `.env` en el repositorio. Cuando
 sean necesarios, documenta únicamente sus nombres en `.env.example`.
+
+## Importación CSV
+
+La plantilla está disponible en `public/plantilla-inventario.csv`. Los campos
+obligatorios son código de barras, modelo, tipo de dispositivo y fecha de
+ingreso. Las tiendas incluidas en el archivo se crean o actualizan por su
+número, y los equipos existentes se actualizan por su código de barras.
