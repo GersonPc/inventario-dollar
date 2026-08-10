@@ -1,15 +1,26 @@
-import { eq, sql } from "drizzle-orm";
+import { env } from "cloudflare:workers";
+import { eq } from "drizzle-orm";
 import { getChatGPTUser } from "@/app/chatgpt-auth";
 import { getDb } from "@/db";
 import { users } from "@/db/schema";
 
 export type InventoryRole = "admin" | "operator" | "viewer";
 
+function normalizeEmail(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function getBootstrapAdminEmail(): string {
+  const runtimeEnv = env as unknown as Record<string, string | undefined>;
+  return normalizeEmail(runtimeEnv.INVENTORY_ADMIN_EMAIL ?? "");
+}
+
 export async function getInventoryUser() {
   const identity = await getChatGPTUser();
   if (!identity) return null;
 
   const db = getDb();
+  const email = normalizeEmail(identity.email);
   const [existing] = await db
     .select()
     .from(users)
@@ -18,33 +29,49 @@ export async function getInventoryUser() {
 
   if (existing) {
     if (
-      existing.email !== identity.email ||
+      existing.email !== email ||
       existing.displayName !== identity.displayName
     ) {
       await db
         .update(users)
         .set({
-          email: identity.email,
+          email,
           displayName: identity.displayName,
           updatedAt: new Date().toISOString(),
         })
         .where(eq(users.id, identity.userId));
     }
-    return { ...existing, email: identity.email, displayName: identity.displayName };
+    return { ...existing, email, displayName: identity.displayName };
   }
 
-  const [summary] = await db
-    .select({ count: sql<number>`count(*)` })
-    .from(users);
-  const role: InventoryRole = Number(summary?.count ?? 0) === 0 ? "admin" : "viewer";
+  const [authorized] = await db
+    .select()
+    .from(users)
+    .where(eq(users.email, email))
+    .limit(1);
+
+  if (authorized) {
+    if (authorized.displayName !== identity.displayName) {
+      await db
+        .update(users)
+        .set({
+          displayName: identity.displayName,
+          updatedAt: new Date().toISOString(),
+        })
+        .where(eq(users.id, authorized.id));
+    }
+    return { ...authorized, displayName: identity.displayName };
+  }
+
+  if (email !== getBootstrapAdminEmail()) return null;
 
   const [created] = await db
     .insert(users)
     .values({
       id: identity.userId,
-      email: identity.email,
+      email,
       displayName: identity.displayName,
-      role,
+      role: "admin",
     })
     .returning();
 

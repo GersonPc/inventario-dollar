@@ -28,11 +28,13 @@ test("renders the Inventory Dollar application shell", async () => {
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape/i);
 });
 
-test("declares durable inventory storage and protected credentials", async () => {
-  const [hosting, schema, cryptoSource, csvTemplate] = await Promise.all([
+test("declares durable storage, protected credentials and closed user access", async () => {
+  const [hosting, schema, cryptoSource, authSource, apiSource, csvTemplate] = await Promise.all([
     readFile(new URL("../.openai/hosting.json", import.meta.url), "utf8"),
     readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
     readFile(new URL("../lib/inventory-crypto.ts", import.meta.url), "utf8"),
+    readFile(new URL("../lib/inventory-auth.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/inventory/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../public/plantilla-inventario.csv", import.meta.url), "utf8"),
   ]);
 
@@ -40,6 +42,10 @@ test("declares durable inventory storage and protected credentials", async () =>
   assert.match(schema, /idx_equipment_barcode_unique/);
   assert.match(schema, /equipmentMovements/);
   assert.match(cryptoSource, /AES-GCM/);
+  assert.match(authSource, /INVENTORY_ADMIN_EMAIL/);
+  assert.match(authSource, /if \(email !== getBootstrapAdminEmail\(\)\) return null/);
+  assert.match(apiSource, /payload\.action === "inviteUser"/);
+  assert.match(apiSource, /payload\.action === "toggleUser"/);
   assert.match(csvTemplate, /Codigo de barras/);
   assert.match(csvTemplate, /MAC Address/);
 });

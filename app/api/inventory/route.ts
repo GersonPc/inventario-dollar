@@ -41,7 +41,9 @@ type ActionPayload = {
   equipmentId?: number;
   store?: { id?: number; storeNumber?: string; name?: string };
   userId?: string;
+  email?: string;
   role?: InventoryRole;
+  active?: boolean;
 };
 
 const validRoles = new Set<InventoryRole>(["admin", "operator", "viewer"]);
@@ -49,6 +51,14 @@ const validConditions = new Set(["working", "not_working", "unknown"]);
 
 function clean(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizeEmail(value: unknown): string {
+  return clean(value).toLowerCase();
+}
+
+function isValidEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
 function nullable(value: unknown): string | null {
@@ -108,7 +118,7 @@ export async function GET() {
   try {
     const currentUser = await getInventoryUser();
     if (!currentUser || !currentUser.active) {
-      return jsonError("Necesitas iniciar sesión para consultar el inventario.", 401);
+      return jsonError("Tu sesión no está activa o tu correo no está autorizado.", 401);
     }
 
     const db = getDb();
@@ -175,7 +185,7 @@ export async function POST(request: Request) {
   try {
     const currentUser = await getInventoryUser();
     if (!currentUser || !currentUser.active) {
-      return jsonError("Necesitas iniciar sesión.", 401);
+      return jsonError("Tu sesión no está activa o tu correo no está autorizado.", 401);
     }
 
     const payload = (await request.json()) as ActionPayload;
@@ -204,7 +214,13 @@ export async function POST(request: Request) {
       if (!targetUserId || !role || !validRoles.has(role)) {
         return jsonError("Usuario o rol inválido.");
       }
-      if (targetUserId === currentUser.id && role !== "admin") {
+      const [targetUser] = await db
+        .select({ role: users.role, active: users.active })
+        .from(users)
+        .where(eq(users.id, targetUserId))
+        .limit(1);
+      if (!targetUser) return jsonError("El usuario no existe.", 404);
+      if (targetUser.role === "admin" && targetUser.active && role !== "admin") {
         const [summary] = await db
           .select({ count: sql<number>`count(*)` })
           .from(users)
@@ -216,6 +232,85 @@ export async function POST(request: Request) {
       await db
         .update(users)
         .set({ role, updatedAt: new Date().toISOString() })
+        .where(eq(users.id, targetUserId));
+      return Response.json({ ok: true });
+    }
+
+    if (payload.action === "inviteUser") {
+      if (currentUser.role !== "admin") {
+        return jsonError("Solo un administrador puede autorizar usuarios.", 403);
+      }
+      const email = normalizeEmail(payload.email);
+      const role = payload.role;
+      if (!isValidEmail(email)) return jsonError("Ingresa un correo válido.");
+      if (!role || !validRoles.has(role)) return jsonError("Selecciona un rol válido.");
+
+      const [existingUser] = await db
+        .select({ id: users.id, role: users.role, active: users.active })
+        .from(users)
+        .where(eq(users.email, email))
+        .limit(1);
+      if (
+        existingUser?.role === "admin" &&
+        existingUser.active &&
+        role !== "admin"
+      ) {
+        const [summary] = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(users)
+          .where(and(eq(users.role, "admin"), eq(users.active, true)));
+        if (Number(summary?.count ?? 0) <= 1) {
+          return jsonError("Debe permanecer al menos un administrador.");
+        }
+      }
+
+      const now = new Date().toISOString();
+      await db
+        .insert(users)
+        .values({
+          id: `pending:${email}`,
+          email,
+          displayName: email,
+          role,
+          active: true,
+        })
+        .onConflictDoUpdate({
+          target: users.email,
+          set: { role, active: true, updatedAt: now },
+        });
+      return Response.json({ ok: true, reactivated: Boolean(existingUser) });
+    }
+
+    if (payload.action === "toggleUser") {
+      if (currentUser.role !== "admin") {
+        return jsonError("Solo un administrador puede suspender usuarios.", 403);
+      }
+      const targetUserId = clean(payload.userId);
+      const active = payload.active;
+      if (!targetUserId || typeof active !== "boolean") {
+        return jsonError("Usuario o estado inválido.");
+      }
+      if (targetUserId === currentUser.id && !active) {
+        return jsonError("No puedes suspender tu propia cuenta.");
+      }
+      const [targetUser] = await db
+        .select({ role: users.role, active: users.active })
+        .from(users)
+        .where(eq(users.id, targetUserId))
+        .limit(1);
+      if (!targetUser) return jsonError("El usuario no existe.", 404);
+      if (targetUser.role === "admin" && targetUser.active && !active) {
+        const [summary] = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(users)
+          .where(and(eq(users.role, "admin"), eq(users.active, true)));
+        if (Number(summary?.count ?? 0) <= 1) {
+          return jsonError("Debe permanecer al menos un administrador activo.");
+        }
+      }
+      await db
+        .update(users)
+        .set({ active, updatedAt: new Date().toISOString() })
         .where(eq(users.id, targetUserId));
       return Response.json({ ok: true });
     }

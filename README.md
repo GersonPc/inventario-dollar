@@ -12,6 +12,7 @@ La primera versión funcional incluye:
 - modelo, tipo, MAC Address, IP, contraseña cifrada y notas;
 - importación CSV con vista previa y actualización por código de barras;
 - roles de administrador, operador y consulta;
+- lista cerrada de correos autorizados con opción de suspender y reactivar acceso;
 - historial de movimientos para auditoría.
 
 ## Principios de diseño
