@@ -13,7 +13,12 @@ import {
   stores,
   users,
 } from "@/db/schema";
-import { canWrite, getInventoryUser, type InventoryRole } from "@/lib/inventory-auth";
+import {
+  canWrite,
+  getInventoryUser,
+  isPublicAccessEnabled,
+  type InventoryRole,
+} from "@/lib/inventory-auth";
 import { decryptCredential, encryptCredential } from "@/lib/inventory-crypto";
 
 type EquipmentInput = {
@@ -195,7 +200,7 @@ export async function GET() {
 
     const storeRows = await db.select().from(stores).orderBy(asc(stores.storeNumber));
     const userRows =
-      currentUser.role === "admin"
+      !isPublicAccessEnabled() && currentUser.role === "admin"
         ? await db
             .select({
               id: users.id,
@@ -236,6 +241,13 @@ export async function POST(request: Request) {
 
     const payload = (await request.json()) as ActionPayload;
     const db = getDb();
+
+    if (
+      isPublicAccessEnabled() &&
+      ["updateRole", "inviteUser", "toggleUser"].includes(payload.action ?? "")
+    ) {
+      return jsonError("La administración de usuarios está desactivada durante el acceso público temporal.", 403);
+    }
 
     if (payload.action === "revealCredential") {
       if (currentUser.role !== "admin") {

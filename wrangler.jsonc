@@ -26,7 +26,8 @@
   "vars": {
     "CF_ACCESS_AUD": "1f3c1c9fce8e8354f1f095c0afdd6856b60b1beade0f320c16bf65e5e897a891",
     "CF_ACCESS_TEAM_DOMAIN": "https://icy-silence-7f17.cloudflareaccess.com",
-    "INVENTORY_ADMIN_EMAIL": "gerpxd@gmail.com"
+    "INVENTORY_ADMIN_EMAIL": "gerpxd@gmail.com",
+    "INVENTORY_PUBLIC_ACCESS": "true"
   },
   "observability": {
     "enabled": true

@@ -23,8 +23,7 @@ y el código fuente se mantiene en
 - Actualización de registros existentes por No. de Serie o código de material.
 - Catálogo de tiendas y referencias de sala pendientes de relacionar.
 - Historial de movimientos para auditoría.
-- Roles internos de administrador, operador y consulta.
-- Protección de acceso mediante Cloudflare Access.
+- Acceso público temporal para las pruebas previas a la integración con Entra ID.
 
 ## Documentación
 
@@ -41,7 +40,7 @@ y el código fuente se mantiene en
 - Cloudflare Workers para ejecutar la aplicación.
 - Cloudflare D1 como base de datos SQLite administrada.
 - Drizzle ORM y Drizzle Kit para el esquema y las migraciones.
-- Cloudflare Access para validar la identidad del usuario.
+- Cloudflare Access preparado para reactivarse cuando se conecte Entra ID.
 - AES-GCM para cifrar las contraseñas almacenadas de los equipos.
 
 ## Inicio rápido para desarrollo
@@ -59,10 +58,9 @@ npm install
 npm run dev
 ```
 
-La autenticación completa depende de los encabezados emitidos por Cloudflare
-Access. El servidor local permite desarrollar y compilar la interfaz, pero el
-flujo autenticado debe probarse detrás de Access o con encabezados de identidad
-de un entorno controlado.
+Con `INVENTORY_PUBLIC_ACCESS=true`, el servidor local y el Worker permiten usar
+el inventario sin iniciar sesión. Esta opción es exclusivamente temporal: antes
+de operar con datos sensibles debe desactivarse y configurarse Entra ID.
 
 Antes de integrar cambios:
 
@@ -91,18 +89,20 @@ npm test
 - Configurar `INVENTORY_ENCRYPTION_KEY` como secreto de Cloudflare. Si se pierde
   o cambia, las contraseñas cifradas existentes no podrán recuperarse.
 - Crear un respaldo de D1 antes de importaciones grandes o migraciones.
-- Mantener los permisos de escritura en el servidor; ocultar botones en la
-  interfaz no sustituye la validación del rol.
+- Mientras `INVENTORY_PUBLIC_ACCESS=true`, cualquier persona con la URL puede
+  consultar, registrar, editar e importar inventario. Las contraseñas
+  almacenadas no se pueden revelar sin una identidad autenticada.
 
 ## Estado de autenticación
 
-La producción utiliza Cloudflare Access. El administrador inicial se define con
-`INVENTORY_ADMIN_EMAIL`. La pantalla de administración de usuarios fue retirada
-mientras se prepara la migración a la plataforma de identidad de Microsoft.
+La producción está en modo público temporal mediante
+`INVENTORY_PUBLIC_ACCESS=true` mientras se prepara la integración con Entra ID.
+La pantalla de administración de usuarios continúa retirada. El modo público
+opera como `operator`: permite el trabajo de bodega, pero no revela contraseñas
+guardadas ni habilita la API interna de administración de usuarios.
 
-Durante esta transición, un correo nuevo debe estar permitido por Cloudflare
-Access y también existir en la tabla interna `users`; el administrador inicial
-es la excepción que puede crearse automáticamente.
+Para cerrar de nuevo el acceso, cambia la variable a `false` y protege el
+Worker con una aplicación de Cloudflare Access conectada a Entra ID.
 
 ## Colaboración en GitHub
 

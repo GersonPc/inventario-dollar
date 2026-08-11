@@ -4,17 +4,18 @@
 
 ```mermaid
 flowchart LR
-    U["Usuario interno"] --> A["Cloudflare Access"]
-    A --> W["Cloudflare Worker / Vinext"]
+    U["Usuario con el enlace"] --> W["Cloudflare Worker / Vinext"]
     W --> S["Recursos estáticos"]
     W --> API["API /api/inventory"]
     API --> D1["Cloudflare D1"]
     API --> C["Cifrado AES-GCM"]
 ```
 
-Cloudflare Access autentica al usuario antes de que la solicitud llegue al
-Worker. La aplicación valida el JWT de Access y vuelve a comprobar permisos en
-cada operación de la API.
+Mientras se integra Entra ID, el Worker opera con
+`INVENTORY_PUBLIC_ACCESS=true`. El servidor asigna una identidad temporal de
+rol `operator` a las solicitudes sin sesión: permite las operaciones de bodega
+pero no revelar contraseñas ni administrar usuarios. Cualquier persona con la
+URL puede modificar el inventario durante este periodo.
 
 La interfaz y la API forman una sola aplicación Vinext. Los archivos estáticos
 se sirven mediante el binding `ASSETS` y los datos mediante el binding D1 `DB`.
@@ -26,8 +27,8 @@ se sirven mediante el binding `ASSETS` y los datos mediante el binding D1 `DB`.
 | `app/InventoryApp.tsx` | Interfaz, formularios, lector, filtros y vista previa CSV. |
 | `app/api/inventory/route.ts` | Consultas, validaciones, permisos y operaciones de inventario. |
 | `lib/inventory-csv.ts` | Lectura, normalización y transformación de archivos CSV. |
-| `lib/inventory-auth.ts` | Usuario interno, rol y autorización de escritura. |
-| `app/chatgpt-auth.ts` | Validación del JWT de Cloudflare Access y compatibilidad con encabezados del entorno Sites. |
+| `lib/inventory-auth.ts` | Acceso público temporal, usuario interno, roles y autorización de escritura. |
+| `app/chatgpt-auth.ts` | Validación del JWT de Cloudflare Access para la siguiente fase con Entra ID. |
 | `lib/inventory-crypto.ts` | Cifrado y descifrado AES-GCM de credenciales. |
 | `db/schema.ts` | Esquema Drizzle para D1/SQLite. |
 | `drizzle/` | Migraciones SQL y metadatos de Drizzle Kit. |
@@ -81,7 +82,13 @@ Cada movimiento conserva artículo, tienda, usuario, detalles y fecha.
 
 ## 4. Autenticación y autorización
 
-### Cloudflare Access
+### Modo público temporal
+
+`INVENTORY_PUBLIC_ACCESS=true` evita consultar identidad y devuelve el usuario
+efímero `public-access` con rol `operator`. La API oculta la lista de usuarios y
+rechaza las acciones internas de gestión de usuarios en este modo.
+
+### Cloudflare Access (preparado para reactivarse)
 
 El Worker recibe el encabezado `cf-access-jwt-assertion`. La aplicación:
 
@@ -95,7 +102,7 @@ identidad; utiliza el token firmado por Access.
 
 ### Autorización interna
 
-Después de validar la identidad:
+Cuando se desactive el modo público, después de validar la identidad:
 
 1. busca el identificador en `users`;
 2. si no existe, busca por correo para enlazar una autorización previa;
@@ -141,6 +148,7 @@ npx wrangler secret put INVENTORY_ENCRYPTION_KEY --config wrangler.jsonc
 | `CF_ACCESS_TEAM_DOMAIN` | Variable | Dominio `https://<equipo>.cloudflareaccess.com`. |
 | `CF_ACCESS_AUD` | Variable | Audience tag de la aplicación Access. |
 | `INVENTORY_ADMIN_EMAIL` | Variable | Correo administrador inicial. |
+| `INVENTORY_PUBLIC_ACCESS` | Variable | `true` solo durante la prueba pública previa a Entra ID. |
 | `INVENTORY_ENCRYPTION_KEY` | Secreto | Clave para cifrar credenciales. |
 
 `.env.example` documenta nombres y valores de ejemplo. Para desarrollo local se
@@ -167,10 +175,11 @@ Edita `.dev.vars` únicamente en tu equipo. Después:
 npm run dev
 ```
 
-Limitación actual: el flujo completo de identidad requiere encabezados de
-Cloudflare Access. Para probar operaciones autenticadas usa un entorno protegido
-de prueba o el Worker publicado; no agregues una omisión de autenticación a
-producción.
+El modo público está habilitado intencionalmente en producción durante la
+prueba. No lo mantengas cuando haya contraseñas u otros datos sensibles que no
+deban ser accesibles para cualquier persona con la URL. Para reactivar el
+control, cambia la variable a `false`, vuelve a crear la aplicación de Access y
+configúrala con Entra ID.
 
 ## 8. Cambios de base de datos
 

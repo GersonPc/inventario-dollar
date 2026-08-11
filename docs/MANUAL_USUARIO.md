@@ -5,29 +5,18 @@
 Abre
 [Inventario Dollar](https://inventario-dollar.fybertechdisney.workers.dev).
 
-Cloudflare Access solicitará el correo autorizado. Según la configuración
-actual, enviará un PIN temporal al correo; los usuarios no necesitan administrar
-una cuenta dentro de Cloudflare.
+Durante las pruebas de integración con Entra ID, el inventario está abierto:
+quien tenga el enlace puede entrar sin correo, PIN ni cuenta de Cloudflare.
 
-1. Escribe el correo autorizado.
-2. Solicita el código.
-3. Copia el PIN recibido por correo.
-4. Al terminar, la aplicación mostrará el nombre del usuario y su rol en la
-   barra lateral.
+No compartas el enlace fuera del equipo. Cualquier persona que lo tenga puede
+consultar, registrar, editar e importar datos de inventario.
 
-No compartas el PIN. Es temporal y sirve únicamente para iniciar esa sesión.
+## 2. Acceso temporal
 
-## 2. Roles
-
-| Rol | Consultar | Registrar y editar | Importar CSV | Ver contraseñas |
-| --- | --- | --- | --- | --- |
-| Administrador | Sí | Sí | Sí | Sí |
-| Operador | Sí | Sí | Sí | No |
-| Consulta | Sí | No | No | No |
-
-La administración visual de usuarios no está disponible durante la migración a
-Microsoft. Si un correo nuevo no puede entrar, debe revisarse tanto la política
-de Cloudflare Access como su autorización interna.
+El sistema opera temporalmente como **operador público**. Permite todas las
+acciones de inventario, pero no muestra las contraseñas almacenadas. La pantalla
+de usuarios sigue retirada; los roles volverán a depender de Entra ID al activar
+la autenticación de Microsoft.
 
 ## 3. Pantalla Inventario
 
@@ -171,18 +160,11 @@ La nota del registro conserva el valor científico original como referencia.
 
 ## 12. Problemas frecuentes
 
-### No recibo el PIN
+### No puedo entrar
 
-- Confirma que el correo esté escrito correctamente.
-- Revisa spam y correo no deseado.
-- Busca mensajes de `noreply@notify.cloudflare.com`.
-- Solicita al administrador que compruebe la política de Cloudflare Access.
-
-### El sistema indica que el correo no está autorizado
-
-El correo pudo superar Cloudflare Access pero no estar habilitado en la tabla
-interna de usuarios. Durante la migración a Microsoft, esta autorización debe
-resolverse por administración técnica.
+Mientras el modo público esté activo no se solicita correo. Si aparece una
+pantalla de acceso, informa al administrador: es posible que Cloudflare Access
+se haya activado de nuevo.
 
 ### El lector no abre un registro
 

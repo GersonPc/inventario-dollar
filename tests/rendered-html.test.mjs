@@ -28,7 +28,7 @@ test("renders the Inventory Dollar application shell", async () => {
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape/i);
 });
 
-test("declares durable storage, protected credentials and closed user access", async () => {
+test("declares durable storage, protected credentials and temporary public access", async () => {
   const [hosting, wrangler, schema, cryptoSource, authSource, accessSource, apiSource, csvTemplate] = await Promise.all([
     readFile(new URL("../.openai/hosting.json", import.meta.url), "utf8"),
     readFile(new URL("../wrangler.jsonc", import.meta.url), "utf8"),
@@ -44,6 +44,7 @@ test("declares durable storage, protected credentials and closed user access", a
   assert.match(wrangler, /"binding":\s*"DB"/);
   assert.match(wrangler, /"CF_ACCESS_AUD":\s*"[a-f0-9]{64}"/);
   assert.match(wrangler, /"CF_ACCESS_TEAM_DOMAIN":\s*"https:\/\/[a-z0-9-]+\.cloudflareaccess\.com"/);
+  assert.match(wrangler, /"INVENTORY_PUBLIC_ACCESS":\s*"true"/);
   assert.match(schema, /idx_equipment_barcode_unique/);
   assert.match(schema, /itemKind/);
   assert.match(schema, /quantity/);
@@ -51,6 +52,8 @@ test("declares durable storage, protected credentials and closed user access", a
   assert.match(schema, /equipmentMovements/);
   assert.match(cryptoSource, /AES-GCM/);
   assert.match(authSource, /INVENTORY_ADMIN_EMAIL/);
+  assert.match(authSource, /INVENTORY_PUBLIC_ACCESS/);
+  assert.match(authSource, /role: "operator"/);
   assert.match(authSource, /if \(email !== getBootstrapAdminEmail\(\)\) return null/);
   assert.match(accessSource, /cf-access-jwt-assertion/);
   assert.match(accessSource, /createRemoteJWKSet/);

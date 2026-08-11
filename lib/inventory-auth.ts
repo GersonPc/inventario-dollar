@@ -5,6 +5,7 @@ import { getDb } from "@/db";
 import { users } from "@/db/schema";
 
 export type InventoryRole = "admin" | "operator" | "viewer";
+type InventoryUser = typeof users.$inferSelect;
 
 function normalizeEmail(value: string): string {
   return value.trim().toLowerCase();
@@ -15,7 +16,31 @@ function getBootstrapAdminEmail(): string {
   return normalizeEmail(runtimeEnv.INVENTORY_ADMIN_EMAIL ?? "");
 }
 
-export async function getInventoryUser() {
+/**
+ * Temporary switch used while the Entra ID integration is being prepared.
+ * Keep this disabled in every environment that is not intentionally public.
+ */
+export function isPublicAccessEnabled(): boolean {
+  const runtimeEnv = env as unknown as Record<string, string | undefined>;
+  return runtimeEnv.INVENTORY_PUBLIC_ACCESS?.trim().toLowerCase() === "true";
+}
+
+function getPublicInventoryUser(): InventoryUser {
+  return {
+    id: "public-access",
+    email: "public-access@inventory.local",
+    displayName: "Acceso público temporal",
+    // It can work with the inventory but cannot reveal stored passwords.
+    role: "operator",
+    active: true,
+    createdAt: "",
+    updatedAt: "",
+  };
+}
+
+export async function getInventoryUser(): Promise<InventoryUser | null> {
+  if (isPublicAccessEnabled()) return getPublicInventoryUser();
+
   const identity = await getChatGPTUser();
   if (!identity) return null;
 
