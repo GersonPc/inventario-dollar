@@ -14,9 +14,8 @@ consultar, registrar, editar e importar datos de inventario.
 ## 2. Acceso temporal
 
 El sistema opera temporalmente como **operador público**. Permite todas las
-acciones de inventario, pero no muestra las contraseñas almacenadas. La pantalla
-de usuarios sigue retirada; los roles volverán a depender de Entra ID al activar
-la autenticación de Microsoft.
+acciones de inventario. La pantalla de usuarios sigue retirada; los roles
+volverán a depender de Entra ID al activar la autenticación de Microsoft.
 
 ## 3. Pantalla Inventario
 
@@ -64,8 +63,16 @@ En **Inventario**, aplica primero los filtros o la búsqueda que deseas y luego
 selecciona **Exportar CSV**. Se descarga un archivo UTF-8 con los registros que
 se muestran en la tabla, apto para volver a importar.
 
-Las contraseñas no se exportan. Para conservar series largas al abrir el archivo
-en Excel, importa la columna **No. de Serie** como texto.
+El CSV no incluye contraseñas mientras la aplicación esté en modo público. Para
+conservar series largas al abrir el archivo en Excel, importa **No. de Serie**
+como texto.
+
+### Generar reporte
+
+Selecciona **Generar reporte** para abrir una versión imprimible de los
+registros filtrados, con totales de unidades, bodega, entregas y equipos que no
+funcionan. Desde la ventana del reporte puedes imprimirlo o elegir **Guardar
+como PDF**. El reporte no muestra contraseñas.
 
 ## 5. Registrar varios equipos del mismo modelo
 

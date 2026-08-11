@@ -14,8 +14,9 @@ flowchart LR
 Mientras se integra Entra ID, el Worker opera con
 `INVENTORY_PUBLIC_ACCESS=true`. El servidor asigna una identidad temporal de
 rol `operator` a las solicitudes sin sesión: permite las operaciones de bodega
-pero no revelar contraseñas ni administrar usuarios. Cualquier persona con la
-URL puede modificar el inventario durante este periodo.
+pero no el revelado de contraseñas ni la administración de usuarios. Cualquier
+persona con la URL puede modificar el inventario durante este periodo, pero las
+contraseñas permanecen cifradas y no se incluyen en el CSV.
 
 La interfaz y la API forman una sola aplicación Vinext. Los archivos estáticos
 se sirven mediante el binding `ASSETS` y los datos mediante el binding D1 `DB`.

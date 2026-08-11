@@ -113,6 +113,9 @@ test("exports filtered CSV records and supports a phone camera barcode scanner",
 
   assert.match(appSource, /Exportar CSV/);
   assert.match(appSource, /Las contraseñas no se incluyen/);
+  assert.doesNotMatch(appSource, /exportCredentials/);
+  assert.match(appSource, /Generar reporte/);
+  assert.match(appSource, /reportWindow\.print\(\)/);
   assert.match(appSource, /decodeFromConstraints/);
   assert.match(appSource, /facingMode: \{ ideal: "environment" \}/);
   assert.match(appSource, /Usar cámara/);

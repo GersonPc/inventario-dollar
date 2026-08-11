@@ -156,6 +156,19 @@ function csvCondition(condition: Condition): string {
   return "";
 }
 
+function htmlText(value: unknown): string {
+  return String(value ?? "—").replace(/[&<>"']/g, (character) => {
+    const entities: Record<string, string> = {
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;",
+    };
+    return entities[character];
+  });
+}
+
 async function postAction(body: Record<string, unknown>) {
   const response = await fetch("/api/inventory", {
     method: "POST",
@@ -529,6 +542,7 @@ export function InventoryApp() {
       setError("No hay registros para exportar con los filtros actuales.");
       return;
     }
+    setError("");
     const headers = [
       "No. de Serie",
       "Modelo",
@@ -569,9 +583,48 @@ export function InventoryApp() {
     const link = document.createElement("a");
     link.href = url;
     link.download = `inventario-dollar-${today()}.csv`;
+    document.body.append(link);
     link.click();
-    URL.revokeObjectURL(url);
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
     setNotice(`CSV descargado con ${filteredEquipment.length} registros. Las contraseñas no se incluyen.`);
+  };
+
+  const generateReport = () => {
+    if (!filteredEquipment.length) {
+      setError("No hay registros para generar un reporte con los filtros actuales.");
+      return;
+    }
+    const reportWindow = window.open("", "_blank", "width=1180,height=820");
+    if (!reportWindow) {
+      setError("El navegador bloqueó la ventana del reporte. Permite ventanas emergentes e inténtalo de nuevo.");
+      return;
+    }
+    reportWindow.opener = null;
+    const totalUnits = filteredEquipment.reduce((total, item) => total + item.quantity, 0);
+    const warehouseUnits = filteredEquipment
+      .filter((item) => !item.delivered)
+      .reduce((total, item) => total + item.quantity, 0);
+    const deliveredUnits = filteredEquipment
+      .filter((item) => item.delivered)
+      .reduce((total, item) => total + item.quantity, 0);
+    const reportRows = filteredEquipment
+      .map((item) => {
+        const location = item.storeId
+          ? `${item.storeNumber ?? ""} · ${item.storeName ?? ""}`
+          : item.storeReference || "Sin tienda asignada";
+        return `<tr><td>${htmlText(item.barcode)}</td><td><strong>${htmlText(item.model)}</strong><br><small>${htmlText(item.deviceType)}</small></td><td>${item.quantity.toLocaleString("es-GT")}</td><td>${htmlText(location)}</td><td>${item.delivered ? "Entregado" : "En bodega"}</td><td>${htmlText(conditionLabels[item.condition])}</td><td>${htmlText(formatDate(item.receivedAt))}</td></tr>`;
+      })
+      .join("");
+    const generatedAt = new Intl.DateTimeFormat("es-GT", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(new Date());
+    reportWindow.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Reporte de inventario Dollar</title><style>@page{margin:16mm}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:#12211b;margin:0}h1{margin:0;font-size:25px}p{color:#65736c;margin:7px 0 0}.summary{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:24px 0}.metric{border:1px solid #dfe2dc;border-radius:10px;padding:12px}.metric strong{display:block;font-size:22px;margin-top:5px}table{width:100%;border-collapse:collapse;font-size:11px}th{background:#e4f2eb;text-align:left;padding:9px}td{padding:9px;border-top:1px solid #dfe2dc;vertical-align:top}small{color:#65736c}@media print{body{print-color-adjust:exact;-webkit-print-color-adjust:exact}}</style></head><body><h1>Reporte de inventario · Dollar</h1><p>Generado: ${htmlText(generatedAt)} · ${filteredEquipment.length} registros según los filtros actuales.</p><section class="summary"><div class="metric">Unidades registradas<strong>${totalUnits.toLocaleString("es-GT")}</strong></div><div class="metric">En bodega<strong>${warehouseUnits.toLocaleString("es-GT")}</strong></div><div class="metric">Entregadas<strong>${deliveredUnits.toLocaleString("es-GT")}</strong></div><div class="metric">No funcionan<strong>${filteredEquipment.filter((item) => item.condition === "not_working").length}</strong></div></section><table><thead><tr><th>No. de Serie / Código</th><th>Artículo</th><th>Cantidad</th><th>Ubicación</th><th>Entrega</th><th>Condición</th><th>Ingreso</th></tr></thead><tbody>${reportRows}</tbody></table></body></html>`);
+    reportWindow.document.close();
+    reportWindow.focus();
+    window.setTimeout(() => reportWindow.print(), 250);
+    setNotice("Reporte generado. Usa Imprimir o Guardar como PDF en la nueva ventana.");
   };
 
   if (loading) {
@@ -728,6 +781,9 @@ export function InventoryApp() {
                     <div className="panel-meta">{filteredEquipment.length} resultados</div>
                   </div>
                   <div className="panel-actions">
+                    <button className="ghost-button" type="button" onClick={generateReport}>
+                      Generar reporte
+                    </button>
                     <button className="ghost-button" type="button" onClick={exportCsv}>
                       Exportar CSV
                     </button>

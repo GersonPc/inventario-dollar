@@ -23,6 +23,7 @@ y el código fuente se mantiene en
 - Vista previa y resumen antes de confirmar una importación.
 - Actualización de registros existentes por No. de Serie o código de material.
 - Exportación a CSV UTF-8 de los registros que muestran los filtros actuales.
+- Reporte imprimible de los registros filtrados, listo para guardar como PDF.
 - Catálogo de tiendas y referencias de sala pendientes de relacionar.
 - Historial de movimientos para auditoría.
 - Acceso público temporal para las pruebas previas a la integración con Entra ID.
@@ -93,8 +94,8 @@ npm test
   o cambia, las contraseñas cifradas existentes no podrán recuperarse.
 - Crear un respaldo de D1 antes de importaciones grandes o migraciones.
 - Mientras `INVENTORY_PUBLIC_ACCESS=true`, cualquier persona con la URL puede
-  consultar, registrar, editar e importar inventario. Las contraseñas
-  almacenadas no se pueden revelar sin una identidad autenticada.
+  consultar, registrar, editar, importar y exportar inventario. Las contraseñas
+  permanecen cifradas y se excluyen del CSV mientras no exista autenticación.
 
 ## Estado de autenticación
 
@@ -102,7 +103,8 @@ La producción está en modo público temporal mediante
 `INVENTORY_PUBLIC_ACCESS=true` mientras se prepara la integración con Entra ID.
 La pantalla de administración de usuarios continúa retirada. El modo público
 opera como `operator`: permite el trabajo de bodega, pero no revela contraseñas
-guardadas ni habilita la API interna de administración de usuarios.
+guardadas ni las incluye en la exportación. La API interna de administración de
+usuarios sigue deshabilitada.
 
 Para cerrar de nuevo el acceso, cambia la variable a `false` y protege el
 Worker con una aplicación de Cloudflare Access conectada a Entra ID.
