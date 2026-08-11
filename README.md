@@ -12,6 +12,7 @@ y el código fuente se mantiene en
 
 - Registro individual de equipos mediante No. de Serie.
 - Compatibilidad con lectores USB de códigos de barras que envían `Enter`.
+- Lectura de códigos mediante la cámara trasera de un teléfono.
 - Captura continua: al guardar un equipo nuevo, el formulario permanece abierto
   y conserva los datos para recibir el siguiente escaneo.
 - Registro de materiales por cantidad, con código automático cuando no se
@@ -21,6 +22,7 @@ y el código fuente se mantiene en
 - Importación de archivos CSV separados por coma o punto y coma.
 - Vista previa y resumen antes de confirmar una importación.
 - Actualización de registros existentes por No. de Serie o código de material.
+- Exportación a CSV UTF-8 de los registros que muestran los filtros actuales.
 - Catálogo de tiendas y referencias de sala pendientes de relacionar.
 - Historial de movimientos para auditoría.
 - Acceso público temporal para las pruebas previas a la integración con Entra ID.
@@ -36,6 +38,7 @@ y el código fuente se mantiene en
 ## Tecnología
 
 - React 19 y TypeScript.
+- ZXing Browser para leer códigos desde la cámara sin enviar la imagen al servidor.
 - Vinext y Vite para compilar la aplicación.
 - Cloudflare Workers para ejecutar la aplicación.
 - Cloudflare D1 como base de datos SQLite administrada.

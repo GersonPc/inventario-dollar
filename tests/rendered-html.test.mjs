@@ -105,6 +105,20 @@ test("keeps the equipment dialog ready for continuous barcode capture", async ()
   );
 });
 
+test("exports filtered CSV records and supports a phone camera barcode scanner", async () => {
+  const [appSource, packageSource] = await Promise.all([
+    readFile(new URL("../app/InventoryApp.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../package.json", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(appSource, /Exportar CSV/);
+  assert.match(appSource, /Las contraseñas no se incluyen/);
+  assert.match(appSource, /decodeFromConstraints/);
+  assert.match(appSource, /facingMode: \{ ideal: "environment" \}/);
+  assert.match(appSource, /Usar cámara/);
+  assert.match(packageSource, /"@zxing\/browser"/);
+});
+
 test("removes user administration from the application interface", async () => {
   const appSource = await readFile(
     new URL("../app/InventoryApp.tsx", import.meta.url),

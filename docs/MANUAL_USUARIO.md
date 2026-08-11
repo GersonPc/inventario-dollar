@@ -46,6 +46,27 @@ Los lectores USB habituales funcionan como un teclado.
 El lector no necesita un controlador especial siempre que pueda escribir texto
 y enviar `Enter`.
 
+### Usar la cámara de un teléfono
+
+1. Abre **Inventario** y selecciona **Usar cámara**.
+2. Cuando el navegador lo pida, permite usar la cámara.
+3. Apunta la cámara trasera al código y mantenlo dentro del recuadro.
+4. Al detectarlo, la cámara se cierra sola: se abrirá la ficha si existe o el
+   formulario de nuevo equipo con la serie ya escrita.
+
+La lectura se hace en el teléfono; la imagen de la cámara no se sube al
+inventario. La URL debe abrirse por HTTPS, como la versión publicada. Si el
+navegador no ofrece la cámara, usa Chrome o Safari actualizado, o el lector USB.
+
+### Exportar el inventario a CSV
+
+En **Inventario**, aplica primero los filtros o la búsqueda que deseas y luego
+selecciona **Exportar CSV**. Se descarga un archivo UTF-8 con los registros que
+se muestran en la tabla, apto para volver a importar.
+
+Las contraseñas no se exportan. Para conservar series largas al abrir el archivo
+en Excel, importa la columna **No. de Serie** como texto.
+
 ## 5. Registrar varios equipos del mismo modelo
 
 1. Selecciona **Registrar artículo**.

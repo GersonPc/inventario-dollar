@@ -335,6 +335,28 @@ p {
   min-width: 184px;
 }
 
+.scanner-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.camera-button {
+  min-height: 42px;
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  border-radius: 11px;
+  padding: 10px 13px;
+  background: rgba(255, 255, 255, 0.12);
+  color: white;
+  cursor: pointer;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.camera-button:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
 .scanner-copy strong {
   display: block;
   margin-bottom: 5px;
@@ -403,6 +425,12 @@ p {
   margin: 0;
   font-size: 17px;
   letter-spacing: -0.02em;
+}
+
+.panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .panel-meta {
@@ -818,6 +846,52 @@ p {
   gap: 10px;
 }
 
+.camera-backdrop {
+  z-index: 110;
+}
+
+.camera-modal {
+  width: min(620px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow: hidden;
+  border-radius: 20px;
+  background: white;
+  box-shadow: 0 30px 90px rgba(6, 20, 14, 0.3);
+}
+
+.camera-modal-body {
+  padding: 22px;
+}
+
+.camera-preview {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 4 / 3;
+  border-radius: 15px;
+  background: #091710;
+}
+
+.camera-preview video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.camera-guide {
+  position: absolute;
+  inset: 28% 8%;
+  border: 3px solid rgba(255, 255, 255, 0.9);
+  border-radius: 12px;
+  box-shadow: 0 0 0 200vmax rgba(0, 0, 0, 0.24);
+  pointer-events: none;
+}
+
+.camera-instructions {
+  margin: 15px 0 0;
+  color: var(--ink-muted);
+  line-height: 1.5;
+}
+
 .toggle-row {
   display: flex;
   align-items: center;
@@ -997,6 +1071,14 @@ p {
     display: none;
   }
 
+  .scanner-actions {
+    width: 100%;
+  }
+
+  .camera-button {
+    width: 100%;
+  }
+
   .scanner-input {
     padding-right: 16px;
   }
@@ -1028,6 +1110,11 @@ p {
   }
 
   .modal {
+    max-height: 94vh;
+    border-radius: 20px 20px 0 0;
+  }
+
+  .camera-modal {
     max-height: 94vh;
     border-radius: 20px 20px 0 0;
   }

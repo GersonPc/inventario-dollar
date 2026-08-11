@@ -24,7 +24,7 @@ se sirven mediante el binding `ASSETS` y los datos mediante el binding D1 `DB`.
 
 | Ruta | Responsabilidad |
 | --- | --- |
-| `app/InventoryApp.tsx` | Interfaz, formularios, lector, filtros y vista previa CSV. |
+| `app/InventoryApp.tsx` | Interfaz, lector USB/cámara, exportación, formularios, filtros y vista previa CSV. |
 | `app/api/inventory/route.ts` | Consultas, validaciones, permisos y operaciones de inventario. |
 | `lib/inventory-csv.ts` | Lectura, normalización y transformación de archivos CSV. |
 | `lib/inventory-auth.ts` | Acceso público temporal, usuario interno, roles y autorización de escritura. |
@@ -36,6 +36,10 @@ se sirven mediante el binding `ASSETS` y los datos mediante el binding D1 `DB`.
 | `wrangler.jsonc` | Worker, bindings, variables y despliegue de producción. |
 | `.openai/hosting.json` | Binding lógico usado por el flujo de compilación Sites/Vinext. |
 | `tests/rendered-html.test.mjs` | Pruebas de renderizado, seguridad estructural y CSV. |
+
+El lector por cámara carga `@zxing/browser` solo al abrir el diálogo. Solicita
+`getUserMedia` con preferencia por la cámara trasera y decodifica el video en el
+navegador; no transmite imágenes a la API ni las guarda en D1.
 
 ## 3. Modelo de datos
 

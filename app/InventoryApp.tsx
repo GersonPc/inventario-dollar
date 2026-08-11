@@ -120,6 +120,10 @@ const conditionLabels: Record<Condition, string> = {
   unknown: "Sin revisar",
 };
 
+type CameraScannerControls = {
+  stop: () => void;
+};
+
 function formatDate(value: string | null): string {
   if (!value) return "—";
   const parsed = new Date(`${value.slice(0, 10)}T12:00:00`);
@@ -138,6 +142,18 @@ function normalized(value: unknown): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
+}
+
+function csvCell(value: unknown): string {
+  const text = String(value ?? "");
+  const safeText = /^[=+\-@]/.test(text) ? `'${text}` : text;
+  return `"${safeText.replace(/"/g, '""')}"`;
+}
+
+function csvCondition(condition: Condition): string {
+  if (condition === "working") return "SI";
+  if (condition === "not_working") return "NO";
+  return "";
 }
 
 async function postAction(body: Record<string, unknown>) {
@@ -169,8 +185,13 @@ export function InventoryApp() {
   const [csvRecords, setCsvRecords] = useState<CsvRecord[]>([]);
   const [csvName, setCsvName] = useState("");
   const [dragging, setDragging] = useState(false);
+  const [cameraScannerOpen, setCameraScannerOpen] = useState(false);
+  const [cameraScannerStatus, setCameraScannerStatus] = useState("");
+  const [cameraScannerError, setCameraScannerError] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
   const barcodeInput = useRef<HTMLInputElement>(null);
+  const cameraVideo = useRef<HTMLVideoElement>(null);
+  const cameraScannerControls = useRef<CameraScannerControls | null>(null);
 
   const loadInventory = useCallback(async () => {
     setError("");
@@ -249,7 +270,7 @@ export function InventoryApp() {
     [csvRecords],
   );
 
-  const openEquipment = (item?: Equipment, barcode = "") => {
+  const openEquipment = useCallback((item?: Equipment, barcode = "") => {
     setError("");
     setNotice("");
     setRevealedPassword("");
@@ -276,7 +297,107 @@ export function InventoryApp() {
       notes: item.notes ?? "",
       hasCredential: item.hasCredential,
     });
-  };
+  }, []);
+
+  const stopCameraScanner = useCallback(() => {
+    cameraScannerControls.current?.stop();
+    cameraScannerControls.current = null;
+    const video = cameraVideo.current;
+    const stream = video?.srcObject as MediaStream | null;
+    stream?.getTracks().forEach((track) => track.stop());
+    if (video) video.srcObject = null;
+  }, []);
+
+  const closeCameraScanner = useCallback(() => {
+    stopCameraScanner();
+    setCameraScannerOpen(false);
+  }, [stopCameraScanner]);
+
+  const processCameraBarcode = useCallback(
+    (value: string) => {
+      const barcode = value.trim();
+      if (!barcode) return;
+      stopCameraScanner();
+      setCameraScannerOpen(false);
+      setQuery(barcode);
+      const match = data?.equipment.find(
+        (item) => item.barcode.toLowerCase() === barcode.toLowerCase(),
+      );
+      if (match) {
+        openEquipment(match);
+        setNotice("Código detectado. Se abrió la ficha del artículo.");
+      } else if (writable) {
+        openEquipment(undefined, barcode);
+        setNotice("Código detectado. Completa los datos del nuevo artículo.");
+      } else {
+        setNotice("Código detectado, pero tu permiso es solo de consulta.");
+      }
+    },
+    [data?.equipment, openEquipment, stopCameraScanner, writable],
+  );
+
+  useEffect(() => {
+    if (!cameraScannerOpen) return;
+    let cancelled = false;
+    let detected = false;
+    let controls: CameraScannerControls | null = null;
+
+    const startCameraScanner = async () => {
+      if (!navigator.mediaDevices?.getUserMedia || !cameraVideo.current) {
+        setCameraScannerError("Este navegador no permite usar la cámara. Prueba con Chrome, Safari o el lector USB.");
+        return;
+      }
+      setCameraScannerStatus("Solicitando acceso a la cámara…");
+      setCameraScannerError("");
+      try {
+        const { BrowserMultiFormatReader } = await import("@zxing/browser");
+        if (cancelled || !cameraVideo.current) return;
+        const reader = new BrowserMultiFormatReader(undefined, {
+          delayBetweenScanAttempts: 120,
+          delayBetweenScanSuccess: 900,
+        });
+        controls = await reader.decodeFromConstraints(
+          {
+            audio: false,
+            video: {
+              facingMode: { ideal: "environment" },
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+            },
+          },
+          cameraVideo.current,
+          (result) => {
+            if (!result || detected) return;
+            detected = true;
+            processCameraBarcode(result.getText());
+          },
+        );
+        if (cancelled || detected) {
+          controls.stop();
+          return;
+        }
+        cameraScannerControls.current = controls;
+        setCameraScannerStatus("Apunta la cámara al código de barras.");
+      } catch (cameraError) {
+        if (cancelled) return;
+        const name = cameraError instanceof DOMException ? cameraError.name : "";
+        setCameraScannerStatus("");
+        setCameraScannerError(
+          name === "NotAllowedError"
+            ? "No se autorizó la cámara. Permite su uso desde el navegador e inténtalo de nuevo."
+            : "No se pudo abrir la cámara. Comprueba el permiso y prueba con la cámara trasera.",
+        );
+      }
+    };
+
+    const startTimer = window.setTimeout(() => void startCameraScanner(), 0);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(startTimer);
+      controls?.stop();
+      stopCameraScanner();
+    };
+  }, [cameraScannerOpen, processCameraBarcode, stopCameraScanner]);
 
   const scanBarcode = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key !== "Enter") return;
@@ -403,6 +524,56 @@ export function InventoryApp() {
     }
   };
 
+  const exportCsv = () => {
+    if (!filteredEquipment.length) {
+      setError("No hay registros para exportar con los filtros actuales.");
+      return;
+    }
+    const headers = [
+      "No. de Serie",
+      "Modelo",
+      "Tipo de dispositivo",
+      "Clase de articulo",
+      "Cantidad",
+      "Fecha de ingreso",
+      "Entregado",
+      "Funciona",
+      "No. Tienda",
+      "Nombre de tienda",
+      "Sala",
+      "Fecha de entrega",
+      "MAC Address",
+      "IP",
+      "Notas",
+    ];
+    const rows = filteredEquipment.map((item) => [
+      item.barcode,
+      item.model,
+      item.deviceType,
+      item.itemKind === "material" ? "Material" : "Equipo",
+      item.quantity,
+      item.receivedAt,
+      item.delivered ? "SI" : "NO",
+      csvCondition(item.condition),
+      item.storeNumber,
+      item.storeName,
+      item.storeReference,
+      item.deliveredAt,
+      item.macAddress,
+      item.ipAddress,
+      item.notes,
+    ]);
+    const csv = `\uFEFF${[headers, ...rows].map((row) => row.map(csvCell).join(";")).join("\r\n")}`;
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `inventario-dollar-${today()}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    setNotice(`CSV descargado con ${filteredEquipment.length} registros. Las contraseñas no se incluyen.`);
+  };
+
   if (loading) {
     return (
       <main className="loading-screen" aria-live="polite">
@@ -524,9 +695,22 @@ export function InventoryApp() {
                     <span className="scanner-hint">Enter para abrir</span>
                   </div>
                 </div>
-                <div className="scanner-copy">
-                  <strong>Listo para lectores USB</strong>
-                  <span>El equipo se abre automáticamente al recibir el código y Enter.</span>
+                <div className="scanner-actions">
+                  <button
+                    className="camera-button"
+                    type="button"
+                    onClick={() => {
+                      setCameraScannerError("");
+                      setCameraScannerStatus("");
+                      setCameraScannerOpen(true);
+                    }}
+                  >
+                    <span aria-hidden="true">▣</span> Usar cámara
+                  </button>
+                  <div className="scanner-copy">
+                    <strong>USB o cámara del teléfono</strong>
+                    <span>El equipo se abre automáticamente al recibir el código.</span>
+                  </div>
                 </div>
               </section>
 
@@ -543,9 +727,14 @@ export function InventoryApp() {
                     <h2 className="panel-title">Equipos y materiales</h2>
                     <div className="panel-meta">{filteredEquipment.length} resultados</div>
                   </div>
-                  <button className="ghost-button" type="button" onClick={() => void loadInventory()}>
-                    Actualizar
-                  </button>
+                  <div className="panel-actions">
+                    <button className="ghost-button" type="button" onClick={exportCsv}>
+                      Exportar CSV
+                    </button>
+                    <button className="ghost-button" type="button" onClick={() => void loadInventory()}>
+                      Actualizar
+                    </button>
+                  </div>
                 </div>
                 <div className="filters">
                   <input
@@ -704,6 +893,31 @@ export function InventoryApp() {
             </div>
             <div className="modal-actions"><button className="secondary-button" type="button" onClick={() => setEditing(null)}>Cerrar</button>{writable ? <button className="primary-button" type="submit" disabled={saving}>{saving ? "Guardando…" : editing.id ? "Guardar cambios" : "Guardar y continuar"}</button> : null}</div>
           </form>
+        </div>
+      ) : null}
+
+      {cameraScannerOpen ? (
+        <div className="modal-backdrop camera-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeCameraScanner(); }}>
+          <section className="camera-modal" role="dialog" aria-modal="true" aria-labelledby="camera-scanner-title">
+            <div className="modal-header">
+              <div>
+                <p className="eyebrow">Lector con cámara</p>
+                <h2 id="camera-scanner-title">Escanea el código de barras</h2>
+              </div>
+              <button className="close-button" type="button" onClick={closeCameraScanner} aria-label="Cerrar cámara">×</button>
+            </div>
+            <div className="camera-modal-body">
+              <div className="camera-preview">
+                <video ref={cameraVideo} autoPlay muted playsInline aria-label="Vista de la cámara para escanear" />
+                <div className="camera-guide" aria-hidden="true" />
+              </div>
+              <p className="camera-instructions">{cameraScannerStatus || "Da permiso a la cámara y centra el código dentro del recuadro."}</p>
+              {cameraScannerError ? <div className="error-banner" role="alert">{cameraScannerError}</div> : null}
+            </div>
+            <div className="modal-actions">
+              <button className="secondary-button" type="button" onClick={closeCameraScanner}>Cancelar</button>
+            </div>
+          </section>
         </div>
       ) : null}
     </div>

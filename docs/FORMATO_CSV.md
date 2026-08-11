@@ -153,6 +153,16 @@ En ese caso guarda:
 - Las contraseñas nuevas se cifran; una importación sin contraseña conserva la
   contraseña cifrada existente.
 
+## Exportar el inventario
+
+El botón **Exportar CSV** de la pantalla Inventario descarga los registros que
+coinciden con la búsqueda y los filtros actuales. Usa UTF-8 y punto y coma como
+separador, por lo que es compatible con Excel y con este importador.
+
+Incluye la referencia temporal de **Sala**, pero excluye las contraseñas por
+seguridad. Al abrir el resultado en Excel, importa **No. de Serie** como texto
+para evitar notación científica o pérdida de ceros iniciales.
+
 ## Preparar archivos desde Excel
 
 Para evitar que Excel dañe series largas:
