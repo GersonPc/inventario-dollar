@@ -48,6 +48,10 @@ export const equipment = sqliteTable(
     barcode: text("barcode").notNull(),
     model: text("model").notNull(),
     deviceType: text("device_type").notNull(),
+    itemKind: text("item_kind", { enum: ["equipment", "material"] })
+      .notNull()
+      .default("equipment"),
+    quantity: integer("quantity").notNull().default(1),
     receivedAt: text("received_at").notNull(),
     delivered: integer("delivered", { mode: "boolean" })
       .notNull()
@@ -60,6 +64,7 @@ export const equipment = sqliteTable(
     storeId: integer("store_id").references(() => stores.id, {
       onDelete: "set null",
     }),
+    storeReference: text("store_reference"),
     deliveredAt: text("delivered_at"),
     macAddress: text("mac_address"),
     ipAddress: text("ip_address"),
@@ -73,6 +78,7 @@ export const equipment = sqliteTable(
   (table) => [
     uniqueIndex("idx_equipment_barcode_unique").on(table.barcode),
     index("idx_equipment_type").on(table.deviceType),
+    index("idx_equipment_item_kind").on(table.itemKind),
     index("idx_equipment_store").on(table.storeId),
     index("idx_equipment_delivery").on(table.delivered),
     index("idx_equipment_condition").on(table.condition),

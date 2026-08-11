@@ -21,17 +21,21 @@ type EquipmentInput = {
   barcode?: string;
   model?: string;
   deviceType?: string;
+  itemKind?: "equipment" | "material";
+  quantity?: number;
   receivedAt?: string;
   delivered?: boolean;
   condition?: "working" | "not_working" | "unknown";
   storeId?: number | null;
   storeNumber?: string;
   storeName?: string;
+  storeReference?: string | null;
   deliveredAt?: string | null;
   macAddress?: string | null;
   ipAddress?: string | null;
   password?: string | null;
   notes?: string | null;
+  sourceRow?: number;
 };
 
 type ActionPayload = {
@@ -48,6 +52,7 @@ type ActionPayload = {
 
 const validRoles = new Set<InventoryRole>(["admin", "operator", "viewer"]);
 const validConditions = new Set(["working", "not_working", "unknown"]);
+const validItemKinds = new Set(["equipment", "material"]);
 
 function clean(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -71,12 +76,36 @@ function normalizeMac(value: unknown): string | null {
   return result || null;
 }
 
+function itemKind(input: EquipmentInput): "equipment" | "material" {
+  return validItemKinds.has(input.itemKind ?? "") ? input.itemKind! : "equipment";
+}
+
+function itemQuantity(input: EquipmentInput): number {
+  const quantity = Number(input.quantity ?? 1);
+  return Number.isInteger(quantity) && quantity > 0 ? quantity : 1;
+}
+
+function inventoryCode(input: EquipmentInput): string {
+  const code = clean(input.barcode);
+  if (code) return code;
+  return `MAT-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
+}
+
 function equipmentError(input: EquipmentInput): string | null {
-  if (!clean(input.barcode)) return "El código de barras es obligatorio.";
+  if (itemKind(input) === "equipment" && !clean(input.barcode)) {
+    return "El No. de Serie es obligatorio para los equipos.";
+  }
   if (!clean(input.model)) return "El modelo es obligatorio.";
-  if (!clean(input.deviceType)) return "El tipo de dispositivo es obligatorio.";
-  if (!clean(input.receivedAt)) return "La fecha de ingreso es obligatoria.";
-  if (input.delivered && !input.storeId && !clean(input.storeNumber)) {
+  if (!clean(input.deviceType)) return "El tipo de equipo o material es obligatorio.";
+  if (!Number.isInteger(Number(input.quantity ?? 1)) || Number(input.quantity ?? 1) < 1) {
+    return "La cantidad debe ser un número entero mayor que cero.";
+  }
+  if (
+    input.delivered &&
+    !input.storeId &&
+    !clean(input.storeNumber) &&
+    !clean(input.storeReference)
+  ) {
     return "Selecciona una tienda para marcar el equipo como entregado.";
   }
   return null;
@@ -95,7 +124,21 @@ async function resolveStoreId(
 
   const storeNumber = clean(input.storeNumber);
   const storeName = clean(input.storeName);
-  if (!storeNumber) return null;
+  const storeReference = clean(input.storeReference);
+  if (!storeNumber) {
+    if (!storeReference) return null;
+    const db = getDb();
+    const [store] = await db
+      .select({ id: stores.id })
+      .from(stores)
+      .where(
+        /^\d+$/.test(storeReference)
+          ? eq(stores.storeNumber, storeReference)
+          : sql`lower(${stores.name}) = ${storeReference.toLowerCase()}`,
+      )
+      .limit(1);
+    return store?.id ?? null;
+  }
   if (!storeName) throw new Error(`Falta el nombre de la tienda ${storeNumber}.`);
 
   const db = getDb();
@@ -128,12 +171,15 @@ export async function GET() {
         barcode: equipment.barcode,
         model: equipment.model,
         deviceType: equipment.deviceType,
+        itemKind: equipment.itemKind,
+        quantity: equipment.quantity,
         receivedAt: equipment.receivedAt,
         delivered: equipment.delivered,
         condition: equipment.condition,
         storeId: equipment.storeId,
         storeNumber: stores.storeNumber,
         storeName: stores.name,
+        storeReference: equipment.storeReference,
         deliveredAt: equipment.deliveredAt,
         macAddress: equipment.macAddress,
         ipAddress: equipment.ipAddress,
@@ -342,16 +388,20 @@ export async function POST(request: Request) {
       if (validationError) return jsonError(validationError);
       const storeId = await resolveStoreId(input);
       const now = new Date().toISOString();
+      const kind = itemKind(input);
       const values = {
-        barcode: clean(input.barcode),
+        barcode: inventoryCode(input),
         model: clean(input.model),
         deviceType: clean(input.deviceType),
+        itemKind: kind,
+        quantity: kind === "equipment" ? 1 : itemQuantity(input),
         receivedAt: clean(input.receivedAt),
         delivered: Boolean(input.delivered),
         condition: validConditions.has(input.condition ?? "")
           ? input.condition!
           : ("unknown" as const),
         storeId,
+        storeReference: storeId ? null : nullable(input.storeReference),
         deliveredAt: input.delivered
           ? nullable(input.deliveredAt) ?? now.slice(0, 10)
           : null,
@@ -428,13 +478,16 @@ export async function POST(request: Request) {
         const validationError = equipmentError(input);
         if (validationError) {
           skippedCount += 1;
-          if (errors.length < 20) errors.push(`Fila ${index + 2}: ${validationError}`);
+          if (errors.length < 20) {
+            errors.push(`Fila ${input.sourceRow ?? index + 2}: ${validationError}`);
+          }
           continue;
         }
 
         try {
           const storeId = await resolveStoreId(input);
-          const barcode = clean(input.barcode);
+          const kind = itemKind(input);
+          const barcode = inventoryCode(input);
           const [existing] = await db
             .select()
             .from(equipment)
@@ -449,12 +502,15 @@ export async function POST(request: Request) {
             barcode,
             model: clean(input.model),
             deviceType: clean(input.deviceType),
+            itemKind: kind,
+            quantity: kind === "equipment" ? 1 : itemQuantity(input),
             receivedAt: clean(input.receivedAt),
             delivered: Boolean(input.delivered),
             condition: validConditions.has(input.condition ?? "")
               ? input.condition!
               : ("unknown" as const),
             storeId,
+            storeReference: storeId ? null : nullable(input.storeReference),
             deliveredAt: input.delivered
               ? nullable(input.deliveredAt) ?? now.slice(0, 10)
               : null,
@@ -488,13 +544,13 @@ export async function POST(request: Request) {
             action: "imported",
             storeId,
             actorId: currentUser.id,
-            details: JSON.stringify({ row: index + 2 }),
+            details: JSON.stringify({ row: input.sourceRow ?? index + 2 }),
           });
         } catch (error) {
           skippedCount += 1;
           if (errors.length < 20) {
             errors.push(
-              `Fila ${index + 2}: ${error instanceof Error ? error.message : "error inesperado"}`,
+              `Fila ${input.sourceRow ?? index + 2}: ${error instanceof Error ? error.message : "error inesperado"}`,
             );
           }
         }
@@ -508,7 +564,7 @@ export async function POST(request: Request) {
     const message = error instanceof Error ? error.message : "Error inesperado.";
     const status = /UNIQUE constraint failed|unique/i.test(message) ? 409 : 500;
     return jsonError(
-      status === 409 ? "El código de barras ya está registrado." : message,
+      status === 409 ? "El No. de Serie o código de material ya está registrado." : message,
       status,
     );
   }

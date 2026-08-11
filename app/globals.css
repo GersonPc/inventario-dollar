@@ -413,7 +413,7 @@ p {
 
 .filters {
   display: grid;
-  grid-template-columns: minmax(220px, 1.5fr) repeat(3, minmax(130px, 0.6fr));
+  grid-template-columns: minmax(220px, 1.5fr) repeat(4, minmax(130px, 0.6fr));
   gap: 10px;
   padding: 14px 20px;
   border-bottom: 1px solid var(--line);
@@ -539,6 +539,17 @@ p {
 .badge.gray {
   background: #edf0ed;
   color: #64716a;
+}
+
+.badge.amber {
+  margin-top: 7px;
+  background: #fbf0d5;
+  color: #8a6011;
+}
+
+.serial-warning {
+  color: #a05d13;
+  font-weight: 750;
 }
 
 .empty-state {
@@ -690,6 +701,27 @@ p {
 
 .preview-card {
   margin-top: 20px;
+}
+
+.import-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(140px, 1fr));
+  gap: 10px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--line);
+  background: #fbfbf8;
+  color: var(--ink-muted);
+  font-size: 12px;
+}
+
+.import-summary span {
+  padding: 9px 10px;
+  border-radius: 10px;
+  background: white;
+}
+
+.import-summary strong {
+  color: var(--ink);
 }
 
 .notice,
@@ -975,6 +1007,7 @@ p {
 
   .stats-grid,
   .filters,
+  .import-summary,
   .section-grid,
   .form-grid,
   .inline-form {

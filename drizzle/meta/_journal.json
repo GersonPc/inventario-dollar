@@ -8,6 +8,13 @@
       "when": 1786341651358,
       "tag": "0000_bent_shiver_man",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1786427214079,
+      "tag": "0001_yellow_frog_thor",
+      "breakpoints": true
     }
   ]
 }

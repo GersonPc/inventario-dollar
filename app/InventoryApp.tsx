@@ -11,22 +11,30 @@ import {
   type FormEvent,
   type KeyboardEvent,
 } from "react";
+import {
+  mapInventoryCsv,
+  type CsvRecord,
+  type InventoryCondition as Condition,
+  type InventoryItemKind as ItemKind,
+} from "@/lib/inventory-csv";
 
 type View = "inventory" | "stores" | "import";
 type Role = "admin" | "operator" | "viewer";
-type Condition = "working" | "not_working" | "unknown";
 
 type Equipment = {
   id: number;
   barcode: string;
   model: string;
   deviceType: string;
+  itemKind: ItemKind;
+  quantity: number;
   receivedAt: string;
   delivered: boolean;
   condition: Condition;
   storeId: number | null;
   storeNumber: string | null;
   storeName: string | null;
+  storeReference: string | null;
   deliveredAt: string | null;
   macAddress: string | null;
   ipAddress: string | null;
@@ -62,32 +70,19 @@ type EquipmentForm = {
   barcode: string;
   model: string;
   deviceType: string;
+  itemKind: ItemKind;
+  quantity: number;
   receivedAt: string;
   delivered: boolean;
   condition: Condition;
   storeId: string;
+  storeReference: string;
   deliveredAt: string;
   macAddress: string;
   ipAddress: string;
   password: string;
   notes: string;
   hasCredential: boolean;
-};
-
-type CsvRecord = {
-  barcode: string;
-  model: string;
-  deviceType: string;
-  receivedAt: string;
-  delivered: boolean;
-  condition: Condition;
-  storeNumber: string;
-  storeName: string;
-  deliveredAt: string | null;
-  macAddress: string | null;
-  ipAddress: string | null;
-  password: string | null;
-  notes: string | null;
 };
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -97,10 +92,13 @@ function emptyEquipment(barcode = ""): EquipmentForm {
     barcode,
     model: "",
     deviceType: "",
+    itemKind: "equipment",
+    quantity: 1,
     receivedAt: today(),
     delivered: false,
     condition: "unknown",
     storeId: "",
+    storeReference: "",
     deliveredAt: "",
     macAddress: "",
     ipAddress: "",
@@ -142,135 +140,6 @@ function normalized(value: unknown): string {
     .trim();
 }
 
-function detectDelimiter(text: string): string {
-  const firstLine = text.replace(/^\uFEFF/, "").split(/\r?\n/, 1)[0] ?? "";
-  const semicolons = (firstLine.match(/;/g) ?? []).length;
-  const commas = (firstLine.match(/,/g) ?? []).length;
-  return semicolons > commas ? ";" : ",";
-}
-
-function parseCsvRows(text: string): string[][] {
-  const source = text.replace(/^\uFEFF/, "");
-  const delimiter = detectDelimiter(source);
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let field = "";
-  let quoted = false;
-
-  for (let index = 0; index < source.length; index += 1) {
-    const character = source[index];
-    if (character === '"') {
-      if (quoted && source[index + 1] === '"') {
-        field += '"';
-        index += 1;
-      } else {
-        quoted = !quoted;
-      }
-    } else if (character === delimiter && !quoted) {
-      row.push(field.trim());
-      field = "";
-    } else if ((character === "\n" || character === "\r") && !quoted) {
-      if (character === "\r" && source[index + 1] === "\n") index += 1;
-      row.push(field.trim());
-      if (row.some((cell) => cell.length > 0)) rows.push(row);
-      row = [];
-      field = "";
-    } else {
-      field += character;
-    }
-  }
-
-  row.push(field.trim());
-  if (row.some((cell) => cell.length > 0)) rows.push(row);
-  return rows;
-}
-
-function normalizeDate(value: string): string {
-  const clean = value.trim();
-  if (!clean) return "";
-  if (/^\d{5}(?:\.\d+)?$/.test(clean)) {
-    const excelEpoch = Date.UTC(1899, 11, 30);
-    return new Date(excelEpoch + Number(clean) * 86400000)
-      .toISOString()
-      .slice(0, 10);
-  }
-  const latinDate = clean.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
-  if (latinDate) {
-    return `${latinDate[3]}-${latinDate[2].padStart(2, "0")}-${latinDate[1].padStart(2, "0")}`;
-  }
-  const isoDate = clean.match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})/);
-  if (isoDate) {
-    return `${isoDate[1]}-${isoDate[2].padStart(2, "0")}-${isoDate[3].padStart(2, "0")}`;
-  }
-  return clean;
-}
-
-function parseBoolean(value: string): boolean {
-  return ["si", "sí", "yes", "true", "1", "entregado"].includes(
-    value.trim().toLowerCase(),
-  );
-}
-
-function parseCondition(value: string): Condition {
-  const clean = normalized(value);
-  if (["si", "funciona", "working", "bueno", "ok", "1"].includes(clean)) {
-    return "working";
-  }
-  if (
-    ["no", "no funciona", "not working", "danado", "defectuoso", "0"].includes(
-      clean,
-    )
-  ) {
-    return "not_working";
-  }
-  return "unknown";
-}
-
-function mapCsv(text: string): CsvRecord[] {
-  const rows = parseCsvRows(text);
-  if (rows.length < 2) return [];
-  const headers = rows[0].map(normalized);
-  const aliases: Record<string, string[]> = {
-    barcode: ["codigo de barras", "codigo barras", "barcode", "codigo", "serial"],
-    model: ["modelo", "model"],
-    deviceType: ["tipo de dispositivo", "tipo dispositivo", "tipo", "device type"],
-    receivedAt: ["fecha de ingreso", "cuando ingreso", "ingreso", "received at"],
-    delivered: ["entregado", "ya fue entregado", "delivered"],
-    condition: ["funciona", "estado funcional", "condicion", "condition"],
-    storeNumber: ["no tienda", "n tienda", "numero de tienda", "numero tienda"],
-    storeName: ["nombre de tienda", "nombre tienda", "tienda"],
-    deliveredAt: ["fecha de entrega", "entregado el", "delivered at"],
-    macAddress: ["mac address", "mac adress", "mac"],
-    ipAddress: ["ip", "ip address", "direccion ip"],
-    password: ["password", "contrasena", "clave"],
-    notes: ["notas", "observaciones", "comentarios"],
-  };
-
-  const indexOf = (key: string) =>
-    aliases[key].map((alias) => headers.indexOf(alias)).find((index) => index >= 0) ?? -1;
-  const positions = Object.fromEntries(
-    Object.keys(aliases).map((key) => [key, indexOf(key)]),
-  ) as Record<string, number>;
-  const value = (row: string[], key: string) =>
-    positions[key] >= 0 ? row[positions[key]]?.trim() ?? "" : "";
-
-  return rows.slice(1).map((row) => ({
-    barcode: value(row, "barcode"),
-    model: value(row, "model"),
-    deviceType: value(row, "deviceType"),
-    receivedAt: normalizeDate(value(row, "receivedAt")),
-    delivered: parseBoolean(value(row, "delivered")),
-    condition: parseCondition(value(row, "condition")),
-    storeNumber: value(row, "storeNumber"),
-    storeName: value(row, "storeName"),
-    deliveredAt: normalizeDate(value(row, "deliveredAt")) || null,
-    macAddress: value(row, "macAddress") || null,
-    ipAddress: value(row, "ipAddress") || null,
-    password: value(row, "password") || null,
-    notes: value(row, "notes") || null,
-  }));
-}
-
 async function postAction(body: Record<string, unknown>) {
   const response = await fetch("/api/inventory", {
     method: "POST",
@@ -289,6 +158,7 @@ export function InventoryApp() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [query, setQuery] = useState("");
+  const [kindFilter, setKindFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [deliveryFilter, setDeliveryFilter] = useState("");
   const [conditionFilter, setConditionFilter] = useState("");
@@ -343,25 +213,41 @@ export function InventoryApp() {
           item.ipAddress,
           item.storeNumber,
           item.storeName,
+          item.storeReference,
         ].some((value) => normalized(value).includes(search));
+      const matchesKind = !kindFilter || item.itemKind === kindFilter;
       const matchesType = !typeFilter || item.deviceType === typeFilter;
       const matchesDelivery =
         !deliveryFilter ||
         (deliveryFilter === "delivered" ? item.delivered : !item.delivered);
       const matchesCondition = !conditionFilter || item.condition === conditionFilter;
-      return matchesSearch && matchesType && matchesDelivery && matchesCondition;
+      return matchesSearch && matchesKind && matchesType && matchesDelivery && matchesCondition;
     });
-  }, [conditionFilter, data?.equipment, deliveryFilter, query, typeFilter]);
+  }, [conditionFilter, data?.equipment, deliveryFilter, kindFilter, query, typeFilter]);
 
   const stats = useMemo(() => {
     const items = data?.equipment ?? [];
     return {
-      total: items.length,
-      warehouse: items.filter((item) => !item.delivered).length,
-      delivered: items.filter((item) => item.delivered).length,
+      total: items.reduce((total, item) => total + item.quantity, 0),
+      warehouse: items.filter((item) => !item.delivered).reduce((total, item) => total + item.quantity, 0),
+      delivered: items.filter((item) => item.delivered).reduce((total, item) => total + item.quantity, 0),
       failing: items.filter((item) => item.condition === "not_working").length,
     };
   }, [data?.equipment]);
+
+  const csvSummary = useMemo(
+    () => ({
+      needsSerialReview: csvRecords.filter((record) => record.barcode.includes("-PENDIENTE-")).length,
+      materialUnits: csvRecords
+        .filter((record) => record.itemKind === "material")
+        .reduce((total, record) => total + record.quantity, 0),
+      withoutDate: csvRecords.filter((record) => !record.receivedAt).length,
+      withoutStore: csvRecords.filter(
+        (record) => !record.storeNumber && !record.storeName && !record.storeReference,
+      ).length,
+    }),
+    [csvRecords],
+  );
 
   const openEquipment = (item?: Equipment, barcode = "") => {
     setError("");
@@ -376,10 +262,13 @@ export function InventoryApp() {
       barcode: item.barcode,
       model: item.model,
       deviceType: item.deviceType,
+      itemKind: item.itemKind,
+      quantity: item.quantity,
       receivedAt: item.receivedAt.slice(0, 10),
       delivered: item.delivered,
       condition: item.condition,
       storeId: item.storeId ? String(item.storeId) : "",
+      storeReference: item.storeReference ?? "",
       deliveredAt: item.deliveredAt?.slice(0, 10) ?? "",
       macAddress: item.macAddress ?? "",
       ipAddress: item.ipAddress ?? "",
@@ -417,8 +306,8 @@ export function InventoryApp() {
       });
       setNotice(
         isNewEquipment
-          ? "Equipo registrado. Escanea el siguiente código para continuar con los mismos datos."
-          : "Equipo actualizado correctamente.",
+          ? "Artículo registrado. Escanea el siguiente No. de Serie para continuar con los mismos datos."
+          : "Artículo actualizado correctamente.",
       );
       await loadInventory();
       if (isNewEquipment) {
@@ -471,7 +360,7 @@ export function InventoryApp() {
     setError("");
     setNotice("");
     try {
-      const records = mapCsv(await file.text());
+      const records = mapInventoryCsv(await file.text());
       if (!records.length) throw new Error("No se encontraron filas válidas en el archivo.");
       setCsvName(file.name);
       setCsvRecords(records);
@@ -544,8 +433,8 @@ export function InventoryApp() {
   const pageCopy: Record<View, { eyebrow: string; title: string; description: string }> = {
     inventory: {
       eyebrow: "Control de activos",
-      title: "Cada equipo, ubicado y listo.",
-      description: "Escanea, consulta y registra el recorrido de los dispositivos desde la bodega hasta cada tienda.",
+      title: "Cada artículo, ubicado y listo.",
+      description: "Escanea equipos y controla materiales por cantidad desde su ingreso a la bodega hasta cada tienda.",
     },
     stores: {
       eyebrow: "Directorio operativo",
@@ -555,7 +444,7 @@ export function InventoryApp() {
     import: {
       eyebrow: "Carga inicial",
       title: "Del Excel al inventario.",
-      description: "Importa un CSV, revisa una muestra y actualiza equipos existentes usando el código de barras.",
+      description: "Importa un CSV, revisa una muestra y actualiza registros existentes usando el No. de Serie o código de material.",
     },
   };
 
@@ -608,7 +497,7 @@ export function InventoryApp() {
             </div>
             {view === "inventory" && writable ? (
               <button className="primary-button" type="button" onClick={() => openEquipment()}>
-                + Registrar equipo
+                + Registrar artículo
               </button>
             ) : null}
           </header>
@@ -642,16 +531,16 @@ export function InventoryApp() {
               </section>
 
               <section className="stats-grid" aria-label="Resumen del inventario">
-                <Stat label="Equipos registrados" value={stats.total} foot="Total histórico activo" />
-                <Stat label="En bodega" value={stats.warehouse} foot="Disponibles o pendientes" />
-                <Stat label="Entregados" value={stats.delivered} foot="Asignados a una tienda" />
+                <Stat label="Unidades registradas" value={stats.total} foot="Equipos y materiales" />
+                <Stat label="En bodega" value={stats.warehouse} foot="Unidades disponibles o pendientes" />
+                <Stat label="Entregados" value={stats.delivered} foot="Unidades asignadas a tienda" />
                 <Stat label="No funcionan" value={stats.failing} foot="Requieren seguimiento" />
               </section>
 
               <section className="panel">
                 <div className="panel-header">
                   <div>
-                    <h2 className="panel-title">Equipos</h2>
+                    <h2 className="panel-title">Equipos y materiales</h2>
                     <div className="panel-meta">{filteredEquipment.length} resultados</div>
                   </div>
                   <button className="ghost-button" type="button" onClick={() => void loadInventory()}>
@@ -663,9 +552,14 @@ export function InventoryApp() {
                     className="input"
                     value={query}
                     onChange={(event) => setQuery(event.target.value)}
-                    placeholder="Buscar código, modelo, MAC, IP o tienda"
-                    aria-label="Buscar equipos"
+                    placeholder="Buscar serie, modelo, MAC, IP o tienda"
+                    aria-label="Buscar artículos"
                   />
+                  <select className="select" value={kindFilter} onChange={(event) => setKindFilter(event.target.value)} aria-label="Filtrar por clase de artículo">
+                    <option value="">Equipos y materiales</option>
+                    <option value="equipment">Solo equipos</option>
+                    <option value="material">Solo materiales</option>
+                  </select>
                   <select className="select" value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)} aria-label="Filtrar por tipo">
                     <option value="">Todos los tipos</option>
                     {deviceTypes.map((type) => <option key={type} value={type}>{type}</option>)}
@@ -685,17 +579,19 @@ export function InventoryApp() {
                 {filteredEquipment.length ? (
                   <div className="table-wrap">
                     <table className="data-table">
-                      <thead><tr><th>Código</th><th>Equipo</th><th>Red</th><th>Ubicación</th><th>Condición</th><th>Ingreso</th><th /></tr></thead>
+                      <thead><tr><th>No. de Serie / Código</th><th>Artículo</th><th>Cantidad</th><th>Red</th><th>Ubicación</th><th>Condición</th><th>Ingreso</th><th /></tr></thead>
                       <tbody>
                         {filteredEquipment.map((item) => (
                           <tr key={item.id}>
-                            <td><span className="barcode">{item.barcode}</span></td>
-                            <td><div className="device-name">{item.model}</div><div className="device-type">{item.deviceType}</div></td>
+                            <td><span className="barcode">{item.barcode}</span>{item.barcode.includes("-PENDIENTE-") ? <div className="muted serial-warning">Corregir serie</div> : null}</td>
+                            <td><div className="device-name">{item.model}</div><div className="device-type">{item.deviceType}</div>{item.itemKind === "material" ? <span className="badge amber">Material</span> : null}</td>
+                            <td>{item.quantity.toLocaleString("es-GT")}</td>
                             <td><div>{item.ipAddress || "—"}</div><div className="muted">{item.macAddress || "Sin MAC"}</div></td>
                             <td>
                               {item.delivered ? (
-                                <><span className="badge blue">Entregado</span><div className="muted">{item.storeNumber} · {item.storeName}</div></>
+                                <span className="badge blue">Entregado</span>
                               ) : <span className="badge gray">En bodega</span>}
+                              <div className="muted">{item.storeId ? `${item.storeNumber} · ${item.storeName}` : item.storeReference ? `Sala: ${item.storeReference}` : "Sin tienda asignada"}</div>
                             </td>
                             <td><ConditionBadge condition={item.condition} /></td>
                             <td>{formatDate(item.receivedAt)}</td>
@@ -708,7 +604,7 @@ export function InventoryApp() {
                 ) : (
                   <EmptyState
                     title={data.equipment.length ? "No hay coincidencias" : "La bodega está lista"}
-                    text={data.equipment.length ? "Cambia los filtros o escanea otro código." : "Registra el primer equipo o importa el archivo CSV que ya utilizan."}
+                    text={data.equipment.length ? "Cambia los filtros o escanea otro código." : "Registra el primer artículo o importa el archivo CSV que ya utilizan."}
                     action={writable ? () => openEquipment() : undefined}
                   />
                 )}
@@ -741,7 +637,7 @@ export function InventoryApp() {
               <section className="section-grid">
                 <div className="panel form-card">
                   <h2>Selecciona tu archivo CSV</h2>
-                  <p>Excel puede exportar la hoja como CSV UTF-8. Las filas con un código ya registrado actualizarán el equipo.</p>
+                  <p>Excel puede exportar la hoja como CSV UTF-8. Las filas con un No. de Serie o código ya registrado actualizarán el artículo.</p>
                   <div
                     className={`import-dropzone ${dragging ? "dragging" : ""}`}
                     onDragOver={(event) => { event.preventDefault(); setDragging(true); }}
@@ -759,14 +655,20 @@ export function InventoryApp() {
                 </div>
                 <aside className="panel import-help">
                   <h3>Antes de importar</h3>
-                  <ol><li>Conserva una fila de encabezados.</li><li>El código de barras, modelo, tipo y fecha de ingreso son obligatorios.</li><li>Las contraseñas se cifran al guardarse.</li><li>Revisa la muestra antes de confirmar.</li></ol>
+                  <ol><li>Puede existir un título antes de la fila de encabezados.</li><li>El modelo y el tipo son obligatorios; la fecha puede quedar desconocida.</li><li>Los materiales pueden usar cantidad y no necesitan número de serie.</li><li>Las series científicas se marcan para corrección manual.</li><li>Revisa la muestra antes de confirmar.</li></ol>
                   <a href="/plantilla-inventario.csv" download>Descargar plantilla CSV</a>
                 </aside>
               </section>
               {csvRecords.length ? (
                 <section className="panel preview-card">
-                  <div className="panel-header"><div><h2 className="panel-title">Vista previa</h2><div className="panel-meta">Primeras {Math.min(csvRecords.length, 5)} de {csvRecords.length} filas</div></div><button className="primary-button" type="button" onClick={() => void importCsv()} disabled={saving || !writable}>{saving ? "Importando…" : "Importar equipos"}</button></div>
-                  <div className="table-wrap"><table className="data-table"><thead><tr><th>Código</th><th>Equipo</th><th>Tienda</th><th>Estado</th><th>Red</th></tr></thead><tbody>{csvRecords.slice(0, 5).map((record, index) => <tr key={`${record.barcode}-${index}`}><td><span className="barcode">{record.barcode || "Falta"}</span></td><td><div className="device-name">{record.model || "Falta modelo"}</div><div className="muted">{record.deviceType || "Falta tipo"}</div></td><td>{record.storeNumber ? `${record.storeNumber} · ${record.storeName}` : "Sin asignar"}</td><td>{record.delivered ? "Entregado" : "En bodega"}<div className="muted">{conditionLabels[record.condition]}</div></td><td>{record.ipAddress || "—"}<div className="muted">{record.macAddress || "Sin MAC"}</div></td></tr>)}</tbody></table></div>
+                  <div className="panel-header"><div><h2 className="panel-title">Vista previa</h2><div className="panel-meta">Primeras {Math.min(csvRecords.length, 5)} de {csvRecords.length} filas</div></div><button className="primary-button" type="button" onClick={() => void importCsv()} disabled={saving || !writable}>{saving ? "Importando…" : "Importar registros"}</button></div>
+                  <div className="import-summary" aria-label="Resumen de la importación">
+                    <span><strong>{csvSummary.needsSerialReview}</strong> series por corregir</span>
+                    <span><strong>{csvSummary.materialUnits}</strong> unidades de material</span>
+                    <span><strong>{csvSummary.withoutDate}</strong> sin fecha</span>
+                    <span><strong>{csvSummary.withoutStore}</strong> sin tienda</span>
+                  </div>
+                  <div className="table-wrap"><table className="data-table"><thead><tr><th>No. de Serie / Código</th><th>Artículo</th><th>Cantidad</th><th>Tienda</th><th>Estado</th><th>Fecha</th></tr></thead><tbody>{csvRecords.slice(0, 5).map((record, index) => <tr key={`${record.barcode}-${index}`}><td><span className="barcode">{record.barcode || "Falta"}</span>{record.barcode.includes("-PENDIENTE-") ? <div className="muted serial-warning">Corregir serie</div> : null}</td><td><div className="device-name">{record.model || "Falta modelo"}</div><div className="muted">{record.deviceType || "Falta tipo"}</div>{record.itemKind === "material" ? <span className="badge amber">Material</span> : null}</td><td>{record.quantity.toLocaleString("es-GT")}</td><td>{record.storeNumber ? `${record.storeNumber} · ${record.storeName}` : record.storeReference ? `Sala: ${record.storeReference}` : "Sin asignar"}</td><td>{record.delivered ? "Entregado" : "En bodega"}<div className="muted">{conditionLabels[record.condition]}</div></td><td>{record.receivedAt ? formatDate(record.receivedAt) : "Desconocida"}</td></tr>)}</tbody></table></div>
                 </section>
               ) : null}
             </>
@@ -778,22 +680,25 @@ export function InventoryApp() {
       {editing ? (
         <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setEditing(null); }}>
           <form className="modal" onSubmit={submitEquipment} role="dialog" aria-modal="true" aria-labelledby="equipment-form-title">
-            <div className="modal-header"><div><p className="eyebrow">{editing.id ? "Ficha del equipo" : "Nuevo ingreso"}</p><h2 id="equipment-form-title">{editing.id ? editing.model || "Editar equipo" : "Registrar equipo"}</h2></div><button className="close-button" type="button" onClick={() => setEditing(null)} aria-label="Cerrar">×</button></div>
+            <div className="modal-header"><div><p className="eyebrow">{editing.id ? "Ficha del artículo" : "Nuevo ingreso"}</p><h2 id="equipment-form-title">{editing.id ? editing.model || "Editar artículo" : "Registrar artículo"}</h2></div><button className="close-button" type="button" onClick={() => setEditing(null)} aria-label="Cerrar">×</button></div>
             <div className="modal-body">
-              {!editing.id && writable ? <div className="notice batch-entry-note">Captura continua activa: después de guardar conservaremos los datos y seleccionaremos el código para recibir el siguiente escaneo.</div> : null}
+              {!editing.id && writable ? <div className="notice batch-entry-note">Captura continua activa: después de guardar conservaremos los datos y seleccionaremos el No. de Serie para recibir el siguiente escaneo.</div> : null}
               <div className="form-grid">
-                <FormField label="Código de barras" id="equipment-barcode"><input ref={barcodeInput} id="equipment-barcode" className="input" value={editing.barcode} onChange={(event) => setEditing({ ...editing, barcode: event.target.value })} required readOnly={!writable} /></FormField>
-                <FormField label="Fecha de ingreso" id="received-at"><input id="received-at" type="date" className="input" value={editing.receivedAt} onChange={(event) => setEditing({ ...editing, receivedAt: event.target.value })} required readOnly={!writable} /></FormField>
+                <FormField label="Clase de artículo" id="item-kind"><select id="item-kind" className="select" value={editing.itemKind} onChange={(event) => { const itemKind = event.target.value as ItemKind; setEditing({ ...editing, itemKind, quantity: itemKind === "equipment" ? 1 : Math.max(1, editing.quantity) }); }} disabled={!writable || Boolean(editing.id)}><option value="equipment">Equipo con No. de Serie</option><option value="material">Material por cantidad</option></select></FormField>
+                <FormField label={editing.itemKind === "material" ? "Código de material (opcional)" : "No. de Serie"} id="equipment-barcode"><input ref={barcodeInput} id="equipment-barcode" className="input" value={editing.barcode} onChange={(event) => setEditing({ ...editing, barcode: event.target.value })} required={editing.itemKind === "equipment"} readOnly={!writable} placeholder={editing.itemKind === "material" ? "Se genera automáticamente si queda vacío" : "Escanea o escribe la serie"} /></FormField>
+                <FormField label="Cantidad" id="quantity"><input id="quantity" type="number" min="1" step="1" className="input" value={editing.quantity} onChange={(event) => setEditing({ ...editing, quantity: Math.max(1, Number(event.target.value) || 1) })} required disabled={editing.itemKind === "equipment" || !writable} /></FormField>
+                <FormField label="Fecha de ingreso (opcional)" id="received-at"><input id="received-at" type="date" className="input" value={editing.receivedAt} onChange={(event) => setEditing({ ...editing, receivedAt: event.target.value })} readOnly={!writable} /></FormField>
                 <FormField label="Modelo" id="equipment-model"><input id="equipment-model" className="input" value={editing.model} onChange={(event) => setEditing({ ...editing, model: event.target.value })} required readOnly={!writable} /></FormField>
-                <FormField label="Tipo de dispositivo" id="device-type"><input id="device-type" className="input" list="device-types" value={editing.deviceType} onChange={(event) => setEditing({ ...editing, deviceType: event.target.value })} required readOnly={!writable} /><datalist id="device-types">{deviceTypes.map((type) => <option key={type} value={type} />)}</datalist></FormField>
+                <FormField label="Tipo de equipo o material" id="device-type"><input id="device-type" className="input" list="device-types" value={editing.deviceType} onChange={(event) => setEditing({ ...editing, deviceType: event.target.value })} required readOnly={!writable} /><datalist id="device-types">{deviceTypes.map((type) => <option key={type} value={type} />)}</datalist></FormField>
                 <FormField label="Condición" id="condition"><select id="condition" className="select" value={editing.condition} onChange={(event) => setEditing({ ...editing, condition: event.target.value as Condition })} disabled={!writable}><option value="unknown">Sin revisar</option><option value="working">Funciona</option><option value="not_working">No funciona</option></select></FormField>
                 <div className="field"><label htmlFor="delivered">Entrega</label><div className="toggle-row"><input id="delivered" type="checkbox" checked={editing.delivered} onChange={(event) => setEditing({ ...editing, delivered: event.target.checked, deliveredAt: event.target.checked ? editing.deliveredAt || today() : "" })} disabled={!writable} /><span>Ya fue entregado</span></div></div>
-                <FormField label="Tienda asignada" id="store"><select id="store" className="select" value={editing.storeId} onChange={(event) => setEditing({ ...editing, storeId: event.target.value })} required={editing.delivered} disabled={!writable}><option value="">Sin asignar</option>{data.stores.map((store) => <option key={store.id} value={store.id}>{store.storeNumber} · {store.name}</option>)}</select></FormField>
+                <FormField label="Tienda asignada" id="store"><select id="store" className="select" value={editing.storeId} onChange={(event) => setEditing({ ...editing, storeId: event.target.value, storeReference: event.target.value ? "" : editing.storeReference })} required={editing.delivered && !editing.storeReference} disabled={!writable}><option value="">Sin asignar</option>{data.stores.map((store) => <option key={store.id} value={store.id}>{store.storeNumber} · {store.name}</option>)}</select></FormField>
+                {editing.storeReference ? <FormField label="Referencia de sala importada" id="store-reference"><input id="store-reference" className="input" value={editing.storeReference} onChange={(event) => setEditing({ ...editing, storeReference: event.target.value })} readOnly={!writable} /></FormField> : null}
                 <FormField label="Fecha de entrega" id="delivered-at"><input id="delivered-at" type="date" className="input" value={editing.deliveredAt} onChange={(event) => setEditing({ ...editing, deliveredAt: event.target.value })} disabled={!editing.delivered || !writable} /></FormField>
-                <FormField label="MAC Address" id="mac-address"><input id="mac-address" className="input" value={editing.macAddress} onChange={(event) => setEditing({ ...editing, macAddress: event.target.value })} placeholder="AA:BB:CC:DD:EE:FF" readOnly={!writable} /></FormField>
-                <FormField label="Dirección IP" id="ip-address"><input id="ip-address" className="input" value={editing.ipAddress} onChange={(event) => setEditing({ ...editing, ipAddress: event.target.value })} placeholder="192.168.1.10" readOnly={!writable} /></FormField>
-                {writable ? <FormField label={editing.hasCredential ? "Nueva contraseña (opcional)" : "Contraseña del equipo"} id="password"><input id="password" type="password" className="input" value={editing.password} onChange={(event) => setEditing({ ...editing, password: event.target.value })} autoComplete="new-password" placeholder={editing.hasCredential ? "Dejar vacío para conservar" : "Opcional"} /></FormField> : null}
-                {editing.id && editing.hasCredential && data.currentUser.role === "admin" ? <div className="field"><label htmlFor="saved-password">Contraseña guardada</label><div className="credential-row"><input id="saved-password" className="input" value={revealedPassword || "••••••••••••"} readOnly /><button className="secondary-button" type="button" onClick={() => void revealCredential()} disabled={saving}>{revealedPassword ? "Ocultar" : "Mostrar"}</button></div></div> : null}
+                {editing.itemKind === "equipment" ? <FormField label="MAC Address" id="mac-address"><input id="mac-address" className="input" value={editing.macAddress} onChange={(event) => setEditing({ ...editing, macAddress: event.target.value })} placeholder="AA:BB:CC:DD:EE:FF" readOnly={!writable} /></FormField> : null}
+                {editing.itemKind === "equipment" ? <FormField label="Dirección IP" id="ip-address"><input id="ip-address" className="input" value={editing.ipAddress} onChange={(event) => setEditing({ ...editing, ipAddress: event.target.value })} placeholder="192.168.1.10" readOnly={!writable} /></FormField> : null}
+                {writable && editing.itemKind === "equipment" ? <FormField label={editing.hasCredential ? "Nueva contraseña (opcional)" : "Contraseña del equipo"} id="password"><input id="password" type="password" className="input" value={editing.password} onChange={(event) => setEditing({ ...editing, password: event.target.value })} autoComplete="new-password" placeholder={editing.hasCredential ? "Dejar vacío para conservar" : "Opcional"} /></FormField> : null}
+                {editing.itemKind === "equipment" && editing.id && editing.hasCredential && data.currentUser.role === "admin" ? <div className="field"><label htmlFor="saved-password">Contraseña guardada</label><div className="credential-row"><input id="saved-password" className="input" value={revealedPassword || "••••••••••••"} readOnly /><button className="secondary-button" type="button" onClick={() => void revealCredential()} disabled={saving}>{revealedPassword ? "Ocultar" : "Mostrar"}</button></div></div> : null}
                 <FormField label="Notas" id="notes" full><textarea id="notes" className="textarea" value={editing.notes} onChange={(event) => setEditing({ ...editing, notes: event.target.value })} readOnly={!writable} placeholder="Observaciones o detalles adicionales" /></FormField>
               </div>
             </div>
@@ -815,7 +720,7 @@ function ConditionBadge({ condition }: { condition: Condition }) {
 }
 
 function EmptyState({ title, text, action }: { title: string; text: string; action?: () => void }) {
-  return <div className="empty-state"><div className="empty-mark">D</div><h3>{title}</h3><p>{text}</p>{action ? <button className="primary-button" type="button" onClick={action}>Registrar equipo</button> : null}</div>;
+  return <div className="empty-state"><div className="empty-mark">D</div><h3>{title}</h3><p>{text}</p>{action ? <button className="primary-button" type="button" onClick={action}>Registrar artículo</button> : null}</div>;
 }
 
 function FormField({ label, id, full = false, children }: { label: string; id: string; full?: boolean; children: React.ReactNode }) {

@@ -45,6 +45,9 @@ test("declares durable storage, protected credentials and closed user access", a
   assert.match(wrangler, /"CF_ACCESS_AUD":\s*"[a-f0-9]{64}"/);
   assert.match(wrangler, /"CF_ACCESS_TEAM_DOMAIN":\s*"https:\/\/[a-z0-9-]+\.cloudflareaccess\.com"/);
   assert.match(schema, /idx_equipment_barcode_unique/);
+  assert.match(schema, /itemKind/);
+  assert.match(schema, /quantity/);
+  assert.match(schema, /storeReference/);
   assert.match(schema, /equipmentMovements/);
   assert.match(cryptoSource, /AES-GCM/);
   assert.match(authSource, /INVENTORY_ADMIN_EMAIL/);
@@ -55,8 +58,33 @@ test("declares durable storage, protected credentials and closed user access", a
   assert.match(accessSource, /audience/);
   assert.match(apiSource, /payload\.action === "inviteUser"/);
   assert.match(apiSource, /payload\.action === "toggleUser"/);
-  assert.match(csvTemplate, /Codigo de barras/);
+  assert.match(csvTemplate, /No\. de Serie/);
+  assert.match(csvTemplate, /Cantidad/);
   assert.match(csvTemplate, /MAC Address/);
+});
+
+test("maps the warehouse CSV and preserves rows that need manual serial correction", async () => {
+  const { mapInventoryCsv } = await import("../lib/inventory-csv.ts");
+  const csv = `Inventario 2026;;;;;;;;
+Item;"Código y
+nombre de sala";Tipo de equipo;Modelo;Serie;"Estatus
+(funcional o no funcional)";Fecha de inventario;"Entregado al cliente
+(SI O NO)";
+1;2302;PIN PAD;MOV25BC;2,23357E+23;NO FUNCIONAL;46240;;
+2;;CABLE DE RED CANTIDAD 82 UNIDADES;CAP 6 UTP DE 25 ft.;;FUNCIONAL;;;`;
+
+  const records = mapInventoryCsv(csv);
+  assert.equal(records.length, 2);
+  assert.equal(records[0].barcode, "2,23357E+23-PENDIENTE-1");
+  assert.equal(records[0].storeReference, "2302");
+  assert.equal(records[0].condition, "not_working");
+  assert.equal(records[0].receivedAt, "2026-08-06");
+  assert.equal(records[0].delivered, false);
+  assert.equal(records[1].itemKind, "material");
+  assert.equal(records[1].barcode, "MAT-2");
+  assert.equal(records[1].deviceType, "CABLE DE RED");
+  assert.equal(records[1].quantity, 82);
+  assert.equal(records[1].receivedAt, "");
 });
 
 test("keeps the equipment dialog ready for continuous barcode capture", async () => {
