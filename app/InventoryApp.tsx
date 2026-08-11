@@ -12,7 +12,7 @@ import {
   type KeyboardEvent,
 } from "react";
 
-type View = "inventory" | "stores" | "import" | "users";
+type View = "inventory" | "stores" | "import";
 type Role = "admin" | "operator" | "viewer";
 type Condition = "working" | "not_working" | "unknown";
 
@@ -44,21 +44,17 @@ type Store = {
   updatedAt: string;
 };
 
-type User = {
+type CurrentUser = {
   id: string;
   email: string;
   displayName: string;
   role: Role;
-  active: boolean;
 };
-
-type CurrentUser = Pick<User, "id" | "email" | "displayName" | "role">;
 
 type InventoryResponse = {
   currentUser: CurrentUser;
   equipment: Equipment[];
   stores: Store[];
-  users: User[];
 };
 
 type EquipmentForm = {
@@ -300,10 +296,6 @@ export function InventoryApp() {
   const [saving, setSaving] = useState(false);
   const [revealedPassword, setRevealedPassword] = useState("");
   const [storeForm, setStoreForm] = useState({ storeNumber: "", name: "" });
-  const [userForm, setUserForm] = useState<{ email: string; role: Role }>({
-    email: "",
-    role: "viewer",
-  });
   const [csvRecords, setCsvRecords] = useState<CsvRecord[]>([]);
   const [csvName, setCsvName] = useState("");
   const [dragging, setDragging] = useState(false);
@@ -474,44 +466,6 @@ export function InventoryApp() {
     }
   };
 
-  const updateRole = async (userId: string, role: Role) => {
-    setError("");
-    try {
-      await postAction({ action: "updateRole", userId, role });
-      setNotice("Rol actualizado.");
-      await loadInventory();
-    } catch (roleError) {
-      setError(roleError instanceof Error ? roleError.message : "No se pudo cambiar el rol.");
-    }
-  };
-
-  const inviteUser = async (event: FormEvent) => {
-    event.preventDefault();
-    setSaving(true);
-    setError("");
-    try {
-      await postAction({ action: "inviteUser", ...userForm });
-      setUserForm({ email: "", role: "viewer" });
-      setNotice("Correo autorizado correctamente.");
-      await loadInventory();
-    } catch (inviteError) {
-      setError(inviteError instanceof Error ? inviteError.message : "No se pudo autorizar el correo.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const toggleUser = async (user: User) => {
-    setError("");
-    try {
-      await postAction({ action: "toggleUser", userId: user.id, active: !user.active });
-      setNotice(user.active ? "Usuario suspendido." : "Usuario reactivado.");
-      await loadInventory();
-    } catch (toggleError) {
-      setError(toggleError instanceof Error ? toggleError.message : "No se pudo cambiar el acceso.");
-    }
-  };
-
   const readCsvFile = async (file?: File) => {
     if (!file) return;
     setError("");
@@ -603,18 +557,12 @@ export function InventoryApp() {
       title: "Del Excel al inventario.",
       description: "Importa un CSV, revisa una muestra y actualiza equipos existentes usando el código de barras.",
     },
-    users: {
-      eyebrow: "Acceso y seguridad",
-      title: "Cada usuario, el permiso justo.",
-      description: "Los nuevos usuarios comienzan en modo consulta hasta que un administrador cambie su rol.",
-    },
   };
 
-  const navItems: Array<{ id: View; label: string; icon: string; adminOnly?: boolean }> = [
+  const navItems: Array<{ id: View; label: string; icon: string }> = [
     { id: "inventory", label: "Inventario", icon: "EQ" },
     { id: "stores", label: "Tiendas", icon: "T" },
     { id: "import", label: "Importar CSV", icon: "CSV" },
-    { id: "users", label: "Usuarios", icon: "U", adminOnly: true },
   ];
 
   return (
@@ -628,23 +576,21 @@ export function InventoryApp() {
           </div>
         </div>
         <nav className="nav-list" aria-label="Navegación principal">
-          {navItems
-            .filter((item) => !item.adminOnly || data.currentUser.role === "admin")
-            .map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                className={`nav-button ${view === item.id ? "active" : ""}`}
-                onClick={() => {
-                  setView(item.id);
-                  setError("");
-                  setNotice("");
-                }}
-              >
-                <span className="nav-icon" aria-hidden="true">{item.icon}</span>
-                <span className="nav-label">{item.label}</span>
-              </button>
-            ))}
+          {navItems.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className={`nav-button ${view === item.id ? "active" : ""}`}
+              onClick={() => {
+                setView(item.id);
+                setError("");
+                setNotice("");
+              }}
+            >
+              <span className="nav-icon" aria-hidden="true">{item.icon}</span>
+              <span className="nav-label">{item.label}</span>
+            </button>
+          ))}
         </nav>
         <div className="sidebar-user">
           <div className="sidebar-user-name">{data.currentUser.displayName}</div>
@@ -826,32 +772,6 @@ export function InventoryApp() {
             </>
           ) : null}
 
-          {view === "users" && data.currentUser.role === "admin" ? (
-            <section className="panel">
-              <div className="panel-header">
-                <div>
-                  <h2 className="panel-title">Usuarios autorizados</h2>
-                  <div className="panel-meta">Agrega el correo antes del primer ingreso y asigna sus permisos.</div>
-                </div>
-              </div>
-              <form className="inline-form user-access-form" onSubmit={inviteUser}>
-                <FormField label="Correo permitido" id="allowed-email">
-                  <input id="allowed-email" className="input" type="email" value={userForm.email} onChange={(event) => setUserForm({ ...userForm, email: event.target.value })} placeholder="persona@empresa.com" autoComplete="email" required />
-                </FormField>
-                <FormField label="Nivel de permisos" id="allowed-role">
-                  <select id="allowed-role" className="select" value={userForm.role} onChange={(event) => setUserForm({ ...userForm, role: event.target.value as Role })}><option value="admin">Administrador</option><option value="operator">Operador</option><option value="viewer">Consulta</option></select>
-                </FormField>
-                <button className="primary-button" type="submit" disabled={saving}>{saving ? "Autorizando…" : "Autorizar usuario"}</button>
-              </form>
-              <div className="notice" style={{ margin: 20 }}>Solo los correos de esta lista pueden entrar. Administrador controla usuarios y contraseñas; Operador modifica inventario; Consulta solo puede leer.</div>
-              <div className="table-wrap">
-                <table className="data-table" style={{ minWidth: 860 }}>
-                  <thead><tr><th>Usuario</th><th>Correo</th><th>Rol</th><th>Estado</th><th>Acceso</th></tr></thead>
-                  <tbody>{data.users.map((user) => <tr key={user.id}><td><span className="device-name">{user.displayName}</span></td><td>{user.email}</td><td><select className="select" value={user.role} onChange={(event) => void updateRole(user.id, event.target.value as Role)} aria-label={`Rol de ${user.displayName}`}><option value="admin">Administrador</option><option value="operator">Operador</option><option value="viewer">Consulta</option></select></td><td><span className={`badge ${user.active ? "green" : "red"}`}>{user.active ? "Activo" : "Suspendido"}</span></td><td><button className={user.active ? "danger-button" : "secondary-button"} type="button" onClick={() => void toggleUser(user)} disabled={user.id === data.currentUser.id}>{user.active ? "Suspender" : "Reactivar"}</button></td></tr>)}</tbody>
-                </table>
-              </div>
-            </section>
-          ) : null}
         </div>
       </main>
 

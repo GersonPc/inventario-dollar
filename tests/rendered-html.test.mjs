@@ -73,3 +73,14 @@ test("keeps the equipment dialog ready for continuous barcode capture", async ()
     /setEditing\(null\)/,
   );
 });
+
+test("removes user administration from the application interface", async () => {
+  const appSource = await readFile(
+    new URL("../app/InventoryApp.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.doesNotMatch(appSource, /view === "users"/);
+  assert.doesNotMatch(appSource, /Usuarios autorizados/);
+  assert.doesNotMatch(appSource, /Autorizar usuario/);
+});

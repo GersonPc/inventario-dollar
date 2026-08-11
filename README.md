@@ -12,7 +12,7 @@ La primera versión funcional incluye:
 - modelo, tipo, MAC Address, IP, contraseña cifrada y notas;
 - importación CSV con vista previa y actualización por código de barras;
 - roles de administrador, operador y consulta;
-- lista cerrada de correos autorizados con opción de suspender y reactivar acceso;
+- acceso interno protegido mientras se prepara la migración a Microsoft;
 - historial de movimientos para auditoría.
 
 ## Principios de diseño
@@ -66,10 +66,10 @@ La aplicación está publicada en
 Cloudflare Access. El usuario escribe su correo y recibe un PIN temporal; no
 necesita una cuenta de Cloudflare.
 
-Access comprueba la identidad y la aplicación mantiene una segunda lista
-cerrada de correos autorizados. El administrador inicial es
-`gerpxd@gmail.com`; desde el apartado **Usuarios** puede autorizar otros
-correos y asignarles los roles administrador, operador o consulta.
+Access comprueba la identidad y la aplicación conserva sus roles internos
+durante la transición. El administrador inicial es `gerpxd@gmail.com`. La
+administración visual de usuarios se retiró mientras se prepara la integración
+con las plataformas de Microsoft.
 
 ## Flujo de colaboración
 

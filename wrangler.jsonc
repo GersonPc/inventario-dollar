@@ -2,8 +2,15 @@
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "inventario-dollar",
   "main": "dist/server/index.js",
+  "base_dir": "dist/server",
   "compatibility_date": "2026-08-10",
   "compatibility_flags": ["nodejs_compat"],
+  "rules": [
+    {
+      "type": "ESModule",
+      "globs": ["**/*.js", "**/*.mjs"]
+    }
+  ],
   "assets": {
     "directory": "dist/client",
     "binding": "ASSETS"

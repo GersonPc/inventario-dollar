@@ -625,10 +625,6 @@ p {
   background: #fbfbf8;
 }
 
-.user-access-form {
-  grid-template-columns: minmax(260px, 1fr) minmax(180px, 0.45fr) auto;
-}
-
 .import-dropzone {
   min-height: 260px;
   border: 1.5px dashed #a8b7af;
