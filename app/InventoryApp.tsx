@@ -17,8 +17,12 @@ import {
   type InventoryCondition as Condition,
   type InventoryItemKind as ItemKind,
 } from "@/lib/inventory-csv";
+import {
+  deviceModelCatalogKey,
+  deviceModelImageUrl,
+} from "@/lib/device-models";
 
-type View = "inventory" | "stores" | "import";
+type View = "inventory" | "devices" | "stores" | "import";
 type Role = "admin" | "operator" | "viewer";
 
 type Equipment = {
@@ -52,6 +56,33 @@ type Store = {
   updatedAt: string;
 };
 
+type DeviceModelProfile = {
+  id: number;
+  catalogKey: string;
+  deviceType: string;
+  model: string;
+  manufacturer: string | null;
+  description: string | null;
+  specifications: string | null;
+  imageKey: string | null;
+  imageContentType: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type DeviceCatalogEntry = {
+  catalogKey: string;
+  deviceType: string;
+  model: string;
+  units: number;
+  warehouse: number;
+  delivered: number;
+  working: number;
+  notWorking: number;
+  unknown: number;
+  profile: DeviceModelProfile | null;
+};
+
 type CurrentUser = {
   id: string;
   email: string;
@@ -63,6 +94,7 @@ type InventoryResponse = {
   currentUser: CurrentUser;
   equipment: Equipment[];
   stores: Store[];
+  deviceModels: DeviceModelProfile[];
 };
 
 type EquipmentForm = {
@@ -83,6 +115,16 @@ type EquipmentForm = {
   password: string;
   notes: string;
   hasCredential: boolean;
+};
+
+type DeviceModelForm = {
+  catalogKey: string;
+  deviceType: string;
+  model: string;
+  manufacturer: string;
+  description: string;
+  specifications: string;
+  imageKey: string;
 };
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -191,7 +233,12 @@ export function InventoryApp() {
   const [typeFilter, setTypeFilter] = useState("");
   const [deliveryFilter, setDeliveryFilter] = useState("");
   const [conditionFilter, setConditionFilter] = useState("");
+  const [deviceQuery, setDeviceQuery] = useState("");
   const [editing, setEditing] = useState<EquipmentForm | null>(null);
+  const [editingDevice, setEditingDevice] = useState<DeviceModelForm | null>(null);
+  const [deviceImageFile, setDeviceImageFile] = useState<File | null>(null);
+  const [deviceImagePreview, setDeviceImagePreview] = useState("");
+  const [removeDeviceImage, setRemoveDeviceImage] = useState(false);
   const [saving, setSaving] = useState(false);
   const [revealedPassword, setRevealedPassword] = useState("");
   const [storeForm, setStoreForm] = useState({ storeNumber: "", name: "" });
@@ -205,6 +252,7 @@ export function InventoryApp() {
   const barcodeInput = useRef<HTMLInputElement>(null);
   const cameraVideo = useRef<HTMLVideoElement>(null);
   const cameraScannerControls = useRef<CameraScannerControls | null>(null);
+  const deviceImageObjectUrl = useRef("");
 
   const loadInventory = useCallback(async () => {
     setError("");
@@ -269,6 +317,58 @@ export function InventoryApp() {
     };
   }, [data?.equipment]);
 
+  const deviceCatalogGroups = useMemo(() => {
+    const profiles = new Map(
+      (data?.deviceModels ?? []).map((profile) => [profile.catalogKey, profile]),
+    );
+    const entries = new Map<string, DeviceCatalogEntry>();
+
+    for (const item of data?.equipment ?? []) {
+      if (item.itemKind !== "equipment") continue;
+      const catalogKey = deviceModelCatalogKey(item.deviceType, item.model);
+      const current = entries.get(catalogKey) ?? {
+        catalogKey,
+        deviceType: item.deviceType,
+        model: item.model,
+        units: 0,
+        warehouse: 0,
+        delivered: 0,
+        working: 0,
+        notWorking: 0,
+        unknown: 0,
+        profile: profiles.get(catalogKey) ?? null,
+      };
+      current.units += item.quantity;
+      if (item.delivered) current.delivered += item.quantity;
+      else current.warehouse += item.quantity;
+      if (item.condition === "working") current.working += item.quantity;
+      else if (item.condition === "not_working") current.notWorking += item.quantity;
+      else current.unknown += item.quantity;
+      entries.set(catalogKey, current);
+    }
+
+    const search = normalized(deviceQuery);
+    const groups = new Map<string, DeviceCatalogEntry[]>();
+    for (const entry of entries.values()) {
+      const searchable = normalized([
+        entry.deviceType,
+        entry.model,
+        entry.profile?.manufacturer,
+        entry.profile?.description,
+        entry.profile?.specifications,
+      ].join(" "));
+      if (search && !searchable.includes(search)) continue;
+      const group = groups.get(entry.deviceType) ?? [];
+      group.push(entry);
+      groups.set(entry.deviceType, group);
+    }
+
+    return Array.from(groups, ([deviceType, models]) => ({
+      deviceType,
+      models: models.sort((a, b) => a.model.localeCompare(b.model, "es")),
+    })).sort((a, b) => a.deviceType.localeCompare(b.deviceType, "es"));
+  }, [data?.deviceModels, data?.equipment, deviceQuery]);
+
   const csvSummary = useMemo(
     () => ({
       needsSerialReview: csvRecords.filter((record) => record.barcode.includes("-PENDIENTE-")).length,
@@ -311,6 +411,42 @@ export function InventoryApp() {
       hasCredential: item.hasCredential,
     });
   }, []);
+
+  const openDeviceProfile = (entry: DeviceCatalogEntry) => {
+    setError("");
+    setNotice("");
+    if (deviceImageObjectUrl.current) {
+      URL.revokeObjectURL(deviceImageObjectUrl.current);
+      deviceImageObjectUrl.current = "";
+    }
+    setDeviceImageFile(null);
+    setRemoveDeviceImage(false);
+    setDeviceImagePreview(
+      entry.profile?.imageKey
+        ? deviceModelImageUrl(entry.profile.imageKey)
+        : "",
+    );
+    setEditingDevice({
+      catalogKey: entry.catalogKey,
+      deviceType: entry.deviceType,
+      model: entry.model,
+      manufacturer: entry.profile?.manufacturer ?? "",
+      description: entry.profile?.description ?? "",
+      specifications: entry.profile?.specifications ?? "",
+      imageKey: entry.profile?.imageKey ?? "",
+    });
+  };
+
+  const closeDeviceProfile = () => {
+    if (deviceImageObjectUrl.current) {
+      URL.revokeObjectURL(deviceImageObjectUrl.current);
+      deviceImageObjectUrl.current = "";
+    }
+    setEditingDevice(null);
+    setDeviceImageFile(null);
+    setDeviceImagePreview("");
+    setRemoveDeviceImage(false);
+  };
 
   const stopCameraScanner = useCallback(() => {
     cameraScannerControls.current?.stop();
@@ -490,6 +626,69 @@ export function InventoryApp() {
       await loadInventory();
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : "No se pudo eliminar el artículo.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const selectDeviceImage = (event: ChangeEvent<HTMLInputElement>) => {
+    const image = event.target.files?.[0];
+    if (!image) return;
+    if (!["image/jpeg", "image/png", "image/webp"].includes(image.type)) {
+      setError("La imagen debe ser JPG, PNG o WebP.");
+      event.target.value = "";
+      return;
+    }
+    if (image.size > 5 * 1024 * 1024) {
+      setError("La imagen no puede superar 5 MB.");
+      event.target.value = "";
+      return;
+    }
+    setError("");
+    setRemoveDeviceImage(false);
+    setDeviceImageFile(image);
+    if (deviceImageObjectUrl.current) {
+      URL.revokeObjectURL(deviceImageObjectUrl.current);
+    }
+    deviceImageObjectUrl.current = URL.createObjectURL(image);
+    setDeviceImagePreview(deviceImageObjectUrl.current);
+    event.target.value = "";
+  };
+
+  const submitDeviceProfile = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!editingDevice) return;
+
+    setSaving(true);
+    setError("");
+    try {
+      const formData = new FormData();
+      formData.set("deviceType", editingDevice.deviceType);
+      formData.set("model", editingDevice.model);
+      formData.set("manufacturer", editingDevice.manufacturer);
+      formData.set("description", editingDevice.description);
+      formData.set("specifications", editingDevice.specifications);
+      formData.set("removeImage", String(removeDeviceImage));
+      if (deviceImageFile) formData.set("image", deviceImageFile);
+
+      const response = await fetch("/api/device-models", {
+        method: "POST",
+        body: formData,
+      });
+      const payload = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        throw new Error(payload.error ?? "No se pudo guardar la ficha del dispositivo.");
+      }
+
+      closeDeviceProfile();
+      setNotice(`Ficha de ${editingDevice.model} actualizada correctamente.`);
+      await loadInventory();
+    } catch (saveError) {
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : "No se pudo guardar la ficha del dispositivo.",
+      );
     } finally {
       setSaving(false);
     }
@@ -682,6 +881,11 @@ export function InventoryApp() {
       title: "Cada artículo, ubicado y listo.",
       description: "Escanea equipos y controla materiales por cantidad desde su ingreso a la bodega hasta cada tienda.",
     },
+    devices: {
+      eyebrow: "Catálogo de modelos",
+      title: "Conoce cada dispositivo.",
+      description: "Consulta los modelos registrados, sus existencias y la información técnica que utiliza el equipo de bodega.",
+    },
     stores: {
       eyebrow: "Directorio operativo",
       title: "Tiendas y asignaciones.",
@@ -696,6 +900,7 @@ export function InventoryApp() {
 
   const navItems: Array<{ id: View; label: string; icon: string }> = [
     { id: "inventory", label: "Inventario", icon: "EQ" },
+    { id: "devices", label: "Dispositivos", icon: "D" },
     { id: "stores", label: "Tiendas", icon: "T" },
     { id: "import", label: "Importar CSV", icon: "CSV" },
   ];
@@ -879,6 +1084,112 @@ export function InventoryApp() {
             </>
           ) : null}
 
+          {view === "devices" ? (
+            <>
+              <section className="panel device-catalog-toolbar">
+                <div>
+                  <h2 className="panel-title">Tipos y modelos</h2>
+                  <div className="panel-meta">
+                    {deviceCatalogGroups.reduce((total, group) => total + group.models.length, 0)} modelos visibles
+                  </div>
+                </div>
+                <input
+                  className="input device-search"
+                  value={deviceQuery}
+                  onChange={(event) => setDeviceQuery(event.target.value)}
+                  placeholder="Buscar tipo, modelo, marca o característica"
+                  aria-label="Buscar modelos de dispositivos"
+                />
+              </section>
+
+              {deviceCatalogGroups.length ? (
+                <div className="device-catalog-groups">
+                  {deviceCatalogGroups.map((group) => (
+                    <section className="device-type-section" key={group.deviceType}>
+                      <div className="device-type-heading">
+                        <div>
+                          <p className="eyebrow">Tipo de dispositivo</p>
+                          <h2>{group.deviceType}</h2>
+                        </div>
+                        <span>{group.models.length} {group.models.length === 1 ? "modelo" : "modelos"}</span>
+                      </div>
+                      <div className="device-model-grid">
+                        {group.models.map((entry) => {
+                          const profile = entry.profile;
+                          const hasInformation = Boolean(
+                            profile?.manufacturer || profile?.description || profile?.specifications,
+                          );
+                          return (
+                            <article className="device-model-card" key={entry.catalogKey}>
+                              <div className={`device-model-image ${profile?.imageKey ? "has-image" : ""}`}>
+                                {profile?.imageKey ? (
+                                  // R2 serves authenticated, user-uploaded images with dynamic URLs.
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img
+                                    src={deviceModelImageUrl(profile.imageKey)}
+                                    alt={`${entry.deviceType} modelo ${entry.model}`}
+                                    loading="lazy"
+                                  />
+                                ) : (
+                                  <div className="device-image-placeholder" aria-label="Sin imagen">
+                                    <span aria-hidden="true">D</span>
+                                    <small>Sin imagen</small>
+                                  </div>
+                                )}
+                              </div>
+                              <div className="device-model-content">
+                                <div className="device-model-title-row">
+                                  <div>
+                                    <p className="device-model-kicker">Modelo</p>
+                                    <h3>{entry.model}</h3>
+                                  </div>
+                                  <span className="device-unit-count">{entry.units} {entry.units === 1 ? "unidad" : "unidades"}</span>
+                                </div>
+                                {profile?.manufacturer ? (
+                                  <p className="device-manufacturer">{profile.manufacturer}</p>
+                                ) : null}
+                                {profile?.description ? (
+                                  <p className="device-description">{profile.description}</p>
+                                ) : (
+                                  <p className="device-description muted">Agrega una descripción e información de este modelo.</p>
+                                )}
+                                {profile?.specifications ? (
+                                  <div className="device-specifications">
+                                    <strong>Información técnica</strong>
+                                    <p>{profile.specifications}</p>
+                                  </div>
+                                ) : null}
+                                <div className="device-model-stats" aria-label="Resumen del modelo">
+                                  <span><strong>{entry.warehouse}</strong> en bodega</span>
+                                  <span><strong>{entry.delivered}</strong> entregados</span>
+                                  <span className={entry.notWorking ? "has-warning" : ""}><strong>{entry.notWorking}</strong> no funcionan</span>
+                                </div>
+                                <button
+                                  className={hasInformation || profile?.imageKey ? "secondary-button" : "primary-button"}
+                                  type="button"
+                                  onClick={() => openDeviceProfile(entry)}
+                                >
+                                  {writable ? "Editar ficha" : "Ver ficha"}
+                                </button>
+                              </div>
+                            </article>
+                          );
+                        })}
+                      </div>
+                    </section>
+                  ))}
+                </div>
+              ) : (
+                <section className="panel">
+                  <EmptyState
+                    title={data.equipment.some((item) => item.itemKind === "equipment") ? "No hay modelos que coincidan" : "Aún no hay dispositivos"}
+                    text={data.equipment.some((item) => item.itemKind === "equipment") ? "Prueba con otro modelo, tipo o característica." : "Los modelos aparecerán aquí al registrar o importar el primer equipo."}
+                  />
+                </section>
+              )}
+            </>
+          ) : null}
+
           {view === "stores" ? (
             <section className="panel">
               {writable ? (
@@ -973,6 +1284,113 @@ export function InventoryApp() {
               {writable && editing.id ? <button className="danger-button modal-delete-button" type="button" onClick={() => void deleteEquipment()} disabled={saving}>Eliminar artículo</button> : null}
               <button className="secondary-button" type="button" onClick={() => setEditing(null)} disabled={saving}>Cerrar</button>
               {writable ? <button className="primary-button" type="submit" disabled={saving}>{saving ? "Guardando…" : editing.id ? "Guardar cambios" : "Guardar y continuar"}</button> : null}
+            </div>
+          </form>
+        </div>
+      ) : null}
+
+      {editingDevice ? (
+        <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeDeviceProfile(); }}>
+          <form className="modal device-profile-modal" onSubmit={submitDeviceProfile} role="dialog" aria-modal="true" aria-labelledby="device-profile-title">
+            <div className="modal-header">
+              <div>
+                <p className="eyebrow">Ficha del modelo</p>
+                <h2 id="device-profile-title">{editingDevice.model}</h2>
+              </div>
+              <button className="close-button" type="button" onClick={closeDeviceProfile} aria-label="Cerrar ficha">×</button>
+            </div>
+            <div className="modal-body device-profile-body">
+              <div className="device-image-editor">
+                <div className={`device-image-preview ${deviceImagePreview ? "has-image" : ""}`}>
+                  {deviceImagePreview ? (
+                    // The preview can be a temporary browser object URL.
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={deviceImagePreview} alt={`Vista previa de ${editingDevice.model}`} />
+                  ) : (
+                    <div className="device-image-placeholder">
+                      <span aria-hidden="true">D</span>
+                      <small>Aún no hay imagen</small>
+                    </div>
+                  )}
+                </div>
+                {writable ? (
+                  <div className="device-image-actions">
+                    <label className="secondary-button upload-image-button" htmlFor="device-model-image">
+                      {deviceImagePreview ? "Cambiar imagen" : "Subir imagen"}
+                    </label>
+                    <input
+                      id="device-model-image"
+                      className="file-input"
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      onChange={selectDeviceImage}
+                    />
+                    {deviceImagePreview ? (
+                      <button
+                        className="ghost-button"
+                        type="button"
+                        onClick={() => {
+                          if (deviceImageObjectUrl.current) {
+                            URL.revokeObjectURL(deviceImageObjectUrl.current);
+                            deviceImageObjectUrl.current = "";
+                          }
+                          setDeviceImageFile(null);
+                          setDeviceImagePreview("");
+                          setRemoveDeviceImage(true);
+                        }}
+                      >
+                        Quitar imagen
+                      </button>
+                    ) : null}
+                    <small>JPG, PNG o WebP · máximo 5 MB</small>
+                  </div>
+                ) : null}
+              </div>
+              <div className="form-grid device-profile-fields">
+                <FormField label="Tipo de dispositivo" id="profile-device-type">
+                  <input id="profile-device-type" className="input" value={editingDevice.deviceType} readOnly />
+                </FormField>
+                <FormField label="Modelo" id="profile-model">
+                  <input id="profile-model" className="input" value={editingDevice.model} readOnly />
+                </FormField>
+                <FormField label="Marca o fabricante" id="profile-manufacturer" full>
+                  <input
+                    id="profile-manufacturer"
+                    className="input"
+                    maxLength={150}
+                    value={editingDevice.manufacturer}
+                    onChange={(event) => setEditingDevice({ ...editingDevice, manufacturer: event.target.value })}
+                    readOnly={!writable}
+                    placeholder="Ejemplo: APC, Forza, Dell"
+                  />
+                </FormField>
+                <FormField label="Descripción del modelo" id="profile-description" full>
+                  <textarea
+                    id="profile-description"
+                    className="textarea"
+                    maxLength={2000}
+                    value={editingDevice.description}
+                    onChange={(event) => setEditingDevice({ ...editingDevice, description: event.target.value })}
+                    readOnly={!writable}
+                    placeholder="Uso, características principales o recomendaciones para identificarlo"
+                  />
+                </FormField>
+                <FormField label="Información técnica" id="profile-specifications" full>
+                  <textarea
+                    id="profile-specifications"
+                    className="textarea device-specifications-input"
+                    maxLength={5000}
+                    value={editingDevice.specifications}
+                    onChange={(event) => setEditingDevice({ ...editingDevice, specifications: event.target.value })}
+                    readOnly={!writable}
+                    placeholder="Capacidad, voltaje, conexiones, dimensiones u otras especificaciones"
+                  />
+                </FormField>
+              </div>
+            </div>
+            <div className="modal-actions">
+              <button className="secondary-button" type="button" onClick={closeDeviceProfile} disabled={saving}>Cerrar</button>
+              {writable ? <button className="primary-button" type="submit" disabled={saving}>{saving ? "Guardando…" : "Guardar ficha"}</button> : null}
             </div>
           </form>
         </div>

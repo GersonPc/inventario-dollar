@@ -8,6 +8,7 @@ flowchart LR
     W --> S["Recursos estáticos"]
     W --> API["API /api/inventory"]
     API --> D1["Cloudflare D1"]
+    API --> R2["Cloudflare R2 · imágenes de modelos"]
     API --> C["Cifrado AES-GCM"]
 ```
 
@@ -19,7 +20,8 @@ persona con la URL puede modificar el inventario durante este periodo, pero las
 contraseñas permanecen cifradas y no se incluyen en el CSV.
 
 La interfaz y la API forman una sola aplicación Vinext. Los archivos estáticos
-se sirven mediante el binding `ASSETS` y los datos mediante el binding D1 `DB`.
+se sirven mediante el binding `ASSETS`, los datos estructurados mediante el
+binding D1 `DB` y las imágenes subidas mediante el binding R2 `DEVICE_IMAGES`.
 
 ## 2. Componentes principales
 
@@ -27,6 +29,9 @@ se sirven mediante el binding `ASSETS` y los datos mediante el binding D1 `DB`.
 | --- | --- |
 | `app/InventoryApp.tsx` | Interfaz, lector USB/cámara, exportación, formularios, filtros y vista previa CSV. |
 | `app/api/inventory/route.ts` | Consultas, validaciones, permisos y operaciones de inventario. |
+| `app/api/device-models/route.ts` | Edición de fichas técnicas y carga o reemplazo de imágenes. |
+| `app/api/device-model-images/route.ts` | Lectura autenticada y transmisión de imágenes desde R2. |
+| `lib/device-models.ts` | Clave normalizada que relaciona tipo y modelo con su ficha. |
 | `lib/inventory-csv.ts` | Lectura, normalización y transformación de archivos CSV. |
 | `lib/inventory-auth.ts` | Acceso público temporal, usuario interno, roles y autorización de escritura. |
 | `app/chatgpt-auth.ts` | Validación del JWT de Cloudflare Access para la siguiente fase con Entra ID. |
@@ -88,6 +93,25 @@ Cada movimiento conserva artículo, tienda, usuario, detalles y fecha.
 Al eliminar un artículo, la clave foránea `equipment_movements.equipment_id`
 aplica `ON DELETE CASCADE`: también se eliminan sus movimientos. La operación
 no afecta la tabla de tiendas ni otros artículos.
+
+### `device_model_profiles`
+
+Información compartida por todos los equipos del mismo tipo y modelo. La clave
+normalizada `catalog_key` es única y evita duplicar una ficha por diferencias
+de mayúsculas, espacios o tildes.
+
+| Campo | Uso |
+| --- | --- |
+| `device_type`, `model` | Identidad visible del modelo existente en inventario. |
+| `manufacturer` | Marca o fabricante opcional. |
+| `description` | Descripción operativa del modelo. |
+| `specifications` | Información técnica en texto libre. |
+| `image_key` | Clave del objeto guardado en R2; D1 no almacena los bytes. |
+| `image_content_type` | Tipo MIME validado de la imagen. |
+
+Las fichas se muestran junto con conteos calculados desde `equipment`. Se
+aceptan imágenes JPG, PNG y WebP de hasta 5 MB. Al reemplazar o quitar una
+imagen, el objeto anterior se elimina de R2.
 
 ## 4. Autenticación y autorización
 
@@ -154,6 +178,7 @@ npx wrangler secret put INVENTORY_ENCRYPTION_KEY --config wrangler.jsonc
 | --- | --- | --- |
 | `DB` | D1 binding | Base `inventario-dollar-db`. |
 | `ASSETS` | Assets binding | Archivos compilados de la interfaz. |
+| `DEVICE_IMAGES` | R2 binding | Imágenes de las fichas de modelos. |
 | `CF_ACCESS_TEAM_DOMAIN` | Variable | Dominio `https://<equipo>.cloudflareaccess.com`. |
 | `CF_ACCESS_AUD` | Variable | Audience tag de la aplicación Access. |
 | `INVENTORY_ADMIN_EMAIL` | Variable | Correo administrador inicial. |
@@ -249,6 +274,7 @@ Devuelve:
 - usuario actual;
 - hasta 5,000 artículos;
 - catálogo de tiendas;
+- fichas técnicas de tipos y modelos;
 - lista de usuarios para administradores, conservada por compatibilidad aunque
   la interfaz ya no muestra su administración.
 
@@ -267,6 +293,17 @@ El cuerpo contiene un campo `action`.
 | `toggleUser` | Administrador | Activa o suspende; sin interfaz actual. |
 
 La API valida nuevamente el rol; no depende del estado visual de los botones.
+
+### `POST /api/device-models`
+
+Recibe `multipart/form-data` con tipo, modelo, marca, descripción,
+especificaciones y una imagen opcional. Requiere rol `operator` o `admin`.
+Guarda el texto en D1 y los bytes de la imagen en R2.
+
+### `GET /api/device-model-images?key=...`
+
+Valida la sesión y la forma de la clave antes de transmitir el objeto desde R2.
+Incluye tipo de contenido, ETag, caché privada y `nosniff` en la respuesta.
 
 ## 11. Importación CSV
 
@@ -300,6 +337,7 @@ npm test
 - series científicas únicas;
 - material por cantidad;
 - captura continua;
+- catálogo de dispositivos y binding R2 para imágenes;
 - ausencia de la sección visual de usuarios.
 
 Una publicación no debe continuar si falla lint, compilación o pruebas.

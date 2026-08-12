@@ -74,7 +74,30 @@ registros filtrados, con totales de unidades, bodega, entregas y equipos que no
 funcionan. Desde la ventana del reporte puedes imprimirlo o elegir **Guardar
 como PDF**. El reporte no muestra contraseñas.
 
-## 5. Registrar varios equipos del mismo modelo
+## 5. Catálogo de dispositivos
+
+Abre **Dispositivos** para consultar los equipos organizados primero por tipo
+y luego por modelo. Por ejemplo, bajo **UPS** aparecerá una ficha por cada
+modelo registrado en el inventario.
+
+Cada ficha muestra las unidades totales, cuántas están en bodega, cuántas se
+entregaron y cuántas no funcionan. Los modelos aparecen automáticamente al
+registrar o importar equipos; no es necesario crearlos de nuevo.
+
+### Editar la información de un modelo
+
+1. Busca el tipo o modelo y selecciona **Editar ficha**.
+2. Completa la marca o fabricante.
+3. Agrega una descripción y la información técnica que necesite la bodega.
+4. Selecciona **Subir imagen** para elegir una fotografía desde la computadora
+   o el teléfono.
+5. Guarda la ficha.
+
+La imagen debe ser JPG, PNG o WebP y no puede superar 5 MB. Puedes cambiarla o
+quitarla desde el mismo cuadro. Editar la ficha del modelo no modifica los
+números de serie ni los movimientos individuales del inventario.
+
+## 6. Registrar varios equipos del mismo modelo
 
 1. Selecciona **Registrar artículo**.
 2. Elige **Equipo con No. de Serie**.
@@ -90,7 +113,7 @@ Después de guardar:
 
 Antes de guardar de nuevo, confirma que la nueva serie aparece en el campo.
 
-## 6. Registrar materiales por cantidad
+## 7. Registrar materiales por cantidad
 
 1. Selecciona **Registrar artículo**.
 2. En **Clase de artículo**, elige **Material por cantidad**.
@@ -103,7 +126,7 @@ Antes de guardar de nuevo, confirma que la nueva serie aparece en el campo.
 Ejemplo: un paquete de 82 cables puede guardarse como un registro con cantidad
 `82`, en lugar de crear 82 filas individuales.
 
-## 7. Condición y fecha de ingreso
+## 8. Condición y fecha de ingreso
 
 La condición puede ser:
 
@@ -114,7 +137,7 @@ La condición puede ser:
 La fecha de ingreso es opcional. Cuando no se conoce, queda vacía y se muestra
 como un guion o como fecha desconocida en las vistas correspondientes.
 
-## Eliminar un artículo
+## 9. Eliminar un artículo
 
 1. En la tabla de inventario, selecciona **Editar** en el artículo.
 2. Baja hasta el final de la ficha.
@@ -123,7 +146,7 @@ como un guion o como fecha desconocida en las vistas correspondientes.
 La eliminación es permanente: quita el equipo o material y su historial de
 movimientos. No elimina la tienda ni afecta otros artículos.
 
-## 8. Tiendas y entregas
+## 10. Tiendas y entregas
 
 ### Crear una tienda
 
@@ -155,7 +178,7 @@ Cuando se agregue la tienda oficial, abre la ficha, selecciónala en **Tienda
 asignada** y guarda. La referencia temporal se reemplazará por la relación con la
 tienda.
 
-## 9. Datos de red y contraseñas
+## 11. Datos de red y contraseñas
 
 Los equipos pueden almacenar:
 
@@ -168,7 +191,7 @@ La contraseña se cifra antes de guardarse. Solamente un administrador puede
 solicitar que se muestre. Si se edita un equipo y el campo de nueva contraseña
 queda vacío, se conserva la contraseña existente.
 
-## 10. Importar un CSV
+## 12. Importar un CSV
 
 1. Abre **Importar CSV**.
 2. Arrastra el archivo o selecciona **Elegir archivo**.
@@ -182,7 +205,7 @@ No cierres la pestaña mientras el botón muestre **Importando…**.
 
 Consulta todas las reglas en [Formato e importación CSV](FORMATO_CSV.md).
 
-## 11. Corregir series en notación científica
+## 13. Corregir series en notación científica
 
 Excel puede convertir una serie larga a un valor como `2,23357E+23`. Esos
 valores se importan con una marca temporal para no perder ni sobrescribir filas.
@@ -195,7 +218,7 @@ valores se importan con una marca temporal para no perder ni sobrescribir filas.
 
 La nota del registro conserva el valor científico original como referencia.
 
-## 12. Problemas frecuentes
+## 14. Problemas frecuentes
 
 ### No puedo entrar
 

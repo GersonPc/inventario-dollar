@@ -8,6 +8,7 @@ import {
 } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
+  deviceModelProfiles,
   equipment,
   equipmentMovements,
   stores,
@@ -199,6 +200,10 @@ export async function GET() {
       .limit(5000);
 
     const storeRows = await db.select().from(stores).orderBy(asc(stores.storeNumber));
+    const deviceModelRows = await db
+      .select()
+      .from(deviceModelProfiles)
+      .orderBy(asc(deviceModelProfiles.deviceType), asc(deviceModelProfiles.model));
     const userRows =
       !isPublicAccessEnabled() && currentUser.role === "admin"
         ? await db
@@ -222,6 +227,7 @@ export async function GET() {
       },
       equipment: equipmentRows,
       stores: storeRows,
+      deviceModels: deviceModelRows,
       users: userRows,
     });
   } catch (error) {

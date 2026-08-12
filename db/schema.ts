@@ -85,6 +85,33 @@ export const equipment = sqliteTable(
   ],
 );
 
+export const deviceModelProfiles = sqliteTable(
+  "device_model_profiles",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    catalogKey: text("catalog_key").notNull(),
+    deviceType: text("device_type").notNull(),
+    model: text("model").notNull(),
+    manufacturer: text("manufacturer"),
+    description: text("description"),
+    specifications: text("specifications"),
+    imageKey: text("image_key"),
+    imageContentType: text("image_content_type"),
+    updatedBy: text("updated_by").references(() => users.id),
+    createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => [
+    uniqueIndex("idx_device_model_profiles_catalog_key_unique").on(
+      table.catalogKey,
+    ),
+    index("idx_device_model_profiles_type_model").on(
+      table.deviceType,
+      table.model,
+    ),
+  ],
+);
+
 export const equipmentMovements = sqliteTable(
   "equipment_movements",
   {

@@ -445,6 +445,239 @@ p {
   font-size: 12px;
 }
 
+.device-catalog-toolbar {
+  padding: 18px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.device-search {
+  width: min(440px, 100%);
+}
+
+.device-catalog-groups {
+  margin-top: 28px;
+  display: grid;
+  gap: 34px;
+}
+
+.device-type-section {
+  min-width: 0;
+}
+
+.device-type-heading {
+  margin-bottom: 14px;
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.device-type-heading h2 {
+  margin: 2px 0 0;
+  font-size: 25px;
+  letter-spacing: -0.035em;
+}
+
+.device-type-heading > span {
+  color: var(--ink-muted);
+  font-size: 12px;
+}
+
+.device-model-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(310px, 100%), 1fr));
+  gap: 16px;
+}
+
+.device-model-card {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: 0 10px 32px rgba(18, 33, 27, 0.055);
+  display: flex;
+  flex-direction: column;
+}
+
+.device-model-image,
+.device-image-preview {
+  overflow: hidden;
+  background:
+    linear-gradient(145deg, rgba(20, 107, 74, 0.09), rgba(215, 161, 45, 0.13)),
+    #eef2ed;
+  display: grid;
+  place-items: center;
+}
+
+.device-model-image {
+  aspect-ratio: 16 / 9;
+  border-bottom: 1px solid var(--line);
+}
+
+.device-model-image img,
+.device-image-preview img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+  background: white;
+}
+
+.device-image-placeholder {
+  min-height: 100%;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 8px;
+  color: var(--green-dark);
+}
+
+.device-image-placeholder span {
+  width: 52px;
+  height: 52px;
+  border: 1px solid rgba(20, 107, 74, 0.2);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.68);
+  display: grid;
+  place-items: center;
+  font-size: 21px;
+  font-weight: 900;
+}
+
+.device-image-placeholder small {
+  color: var(--ink-muted);
+  font-size: 11px;
+}
+
+.device-model-content {
+  flex: 1;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.device-model-title-row {
+  width: 100%;
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.device-model-kicker {
+  margin: 0 0 3px;
+  color: var(--ink-muted);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.device-model-title-row h3 {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 20px;
+  letter-spacing: -0.03em;
+}
+
+.device-unit-count {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: var(--green-soft);
+  color: var(--green-dark);
+  padding: 6px 9px;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.device-manufacturer {
+  margin: 8px 0 0;
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.device-description {
+  min-height: 58px;
+  margin: 12px 0 0;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  color: #4e5d55;
+  font-size: 13px;
+  line-height: 1.48;
+}
+
+.device-specifications {
+  width: 100%;
+  margin-top: 14px;
+  padding: 12px;
+  border-radius: 12px;
+  background: #f7f8f4;
+}
+
+.device-specifications strong {
+  display: block;
+  margin-bottom: 5px;
+  font-size: 10px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.device-specifications p {
+  margin: 0;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  white-space: pre-line;
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.device-model-stats {
+  width: 100%;
+  margin: auto 0 16px;
+  padding-top: 18px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.device-model-stats span {
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--ink-muted);
+  font-size: 9px;
+  line-height: 1.25;
+}
+
+.device-model-stats strong {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--ink);
+  font-size: 15px;
+}
+
+.device-model-stats .has-warning {
+  border-color: #eccac6;
+  background: var(--red-soft);
+  color: #8b302b;
+}
+
+.device-model-stats .has-warning strong {
+  color: #8b302b;
+}
+
 .filters {
   display: grid;
   grid-template-columns: minmax(220px, 1.5fr) repeat(4, minmax(130px, 0.6fr));
@@ -856,6 +1089,56 @@ p {
   margin-right: auto;
 }
 
+.device-profile-modal {
+  width: min(920px, 100%);
+}
+
+.device-profile-body {
+  display: grid;
+  grid-template-columns: minmax(210px, 0.72fr) minmax(0, 1.5fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.device-image-editor {
+  min-width: 0;
+}
+
+.device-image-preview {
+  aspect-ratio: 4 / 3;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+}
+
+.device-image-actions {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.device-image-actions small {
+  width: 100%;
+  color: var(--ink-muted);
+  font-size: 10px;
+}
+
+.upload-image-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.device-profile-fields {
+  min-width: 0;
+}
+
+.device-specifications-input {
+  min-height: 130px;
+}
+
 .camera-backdrop {
   z-index: 110;
 }
@@ -1002,6 +1285,10 @@ p {
   .filters {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .device-profile-body {
+    grid-template-columns: minmax(180px, 0.6fr) minmax(0, 1.4fr);
+  }
 }
 
 @media (max-width: 760px) {
@@ -1073,6 +1360,16 @@ p {
     width: 100%;
   }
 
+  .device-catalog-toolbar,
+  .device-type-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .device-search {
+    width: 100%;
+  }
+
   .scanner-card {
     grid-template-columns: 1fr;
   }
@@ -1122,6 +1419,14 @@ p {
   .modal {
     max-height: 94vh;
     border-radius: 20px 20px 0 0;
+  }
+
+  .device-profile-body {
+    grid-template-columns: 1fr;
+  }
+
+  .device-image-preview {
+    max-height: 280px;
   }
 
   .camera-modal {

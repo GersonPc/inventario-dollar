@@ -24,6 +24,8 @@ y el código fuente se mantiene en
 - Actualización de registros existentes por No. de Serie o código de material.
 - Exportación a CSV UTF-8 de los registros que muestran los filtros actuales.
 - Reporte imprimible de los registros filtrados, listo para guardar como PDF.
+- Catálogo de dispositivos agrupado por tipo y modelo, con existencias,
+  información técnica editable e imagen propia.
 - Catálogo de tiendas y referencias de sala pendientes de relacionar.
 - Historial de movimientos para auditoría.
 - Acceso público temporal para las pruebas previas a la integración con Entra ID.
@@ -43,6 +45,7 @@ y el código fuente se mantiene en
 - Vinext y Vite para compilar la aplicación.
 - Cloudflare Workers para ejecutar la aplicación.
 - Cloudflare D1 como base de datos SQLite administrada.
+- Cloudflare R2 para almacenar las imágenes subidas de los modelos.
 - Drizzle ORM y Drizzle Kit para el esquema y las migraciones.
 - Cloudflare Access preparado para reactivarse cuando se conecte Entra ID.
 - AES-GCM para cifrar las contraseñas almacenadas de los equipos.

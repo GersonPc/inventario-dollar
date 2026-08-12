@@ -41,7 +41,9 @@ test("declares durable storage, protected credentials and temporary public acces
   ]);
 
   assert.match(hosting, /"d1":\s*"DB"/);
+  assert.match(hosting, /"r2":\s*"DEVICE_IMAGES"/);
   assert.match(wrangler, /"binding":\s*"DB"/);
+  assert.match(wrangler, /"binding":\s*"DEVICE_IMAGES"/);
   assert.match(wrangler, /"CF_ACCESS_AUD":\s*"[a-f0-9]{64}"/);
   assert.match(wrangler, /"CF_ACCESS_TEAM_DOMAIN":\s*"https:\/\/[a-z0-9-]+\.cloudflareaccess\.com"/);
   assert.match(wrangler, /"INVENTORY_PUBLIC_ACCESS":\s*"true"/);
@@ -50,6 +52,8 @@ test("declares durable storage, protected credentials and temporary public acces
   assert.match(schema, /quantity/);
   assert.match(schema, /storeReference/);
   assert.match(schema, /equipmentMovements/);
+  assert.match(schema, /deviceModelProfiles/);
+  assert.match(schema, /idx_device_model_profiles_catalog_key_unique/);
   assert.match(cryptoSource, /AES-GCM/);
   assert.match(authSource, /INVENTORY_ADMIN_EMAIL/);
   assert.match(authSource, /INVENTORY_PUBLIC_ACCESS/);
@@ -144,4 +148,21 @@ test("allows a writable user to delete an existing item from its edit dialog", a
   assert.match(appSource, /const deleteEquipment/);
   assert.match(appSource, /Eliminar artículo/);
   assert.match(appSource, /Esta acción no se puede deshacer/);
+});
+
+test("provides editable device model profiles with R2 image uploads", async () => {
+  const [appSource, profileApi, imageApi] = await Promise.all([
+    readFile(new URL("../app/InventoryApp.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/device-models/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/device-model-images/route.ts", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(appSource, /label: "Dispositivos"/);
+  assert.match(appSource, /Editar ficha/);
+  assert.match(appSource, /Subir imagen/);
+  assert.match(appSource, /Información técnica/);
+  assert.match(profileApi, /env\.DEVICE_IMAGES\.put/);
+  assert.match(profileApi, /maximumImageBytes = 5 \* 1024 \* 1024/);
+  assert.match(imageApi, /env\.DEVICE_IMAGES\.get/);
+  assert.match(imageApi, /x-content-type-options/);
 });
