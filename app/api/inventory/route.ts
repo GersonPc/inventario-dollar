@@ -249,6 +249,7 @@ export async function POST(request: Request) {
 
     const payload = (await request.json()) as ActionPayload;
     const db = getDb();
+    const actorId = isPublicAccessEnabled() ? null : currentUser.id;
 
     if (
       isPublicAccessEnabled() &&
@@ -446,7 +447,7 @@ export async function POST(request: Request) {
         macAddress: normalizeMac(input.macAddress),
         ipAddress: nullable(input.ipAddress),
         notes: nullable(input.notes),
-        updatedBy: currentUser.id,
+        updatedBy: actorId,
         updatedAt: now,
       };
 
@@ -475,7 +476,7 @@ export async function POST(request: Request) {
           equipmentId: inputId,
           action: movementAction,
           storeId,
-          actorId: currentUser.id,
+          actorId,
           details: JSON.stringify({ barcode: values.barcode }),
         });
         return Response.json({ ok: true, id: inputId });
@@ -489,14 +490,14 @@ export async function POST(request: Request) {
         .values({
           ...values,
           credentialCiphertext,
-          createdBy: currentUser.id,
+          createdBy: actorId,
         })
         .returning({ id: equipment.id });
       await db.insert(equipmentMovements).values({
         equipmentId: created.id,
         action: values.delivered ? "delivered" : "received",
         storeId,
-        actorId: currentUser.id,
+        actorId,
         details: JSON.stringify({ barcode: values.barcode }),
       });
       return Response.json({ ok: true, id: created.id }, { status: 201 });
@@ -560,7 +561,7 @@ export async function POST(request: Request) {
             ipAddress: nullable(input.ipAddress),
             credentialCiphertext,
             notes: nullable(input.notes),
-            updatedBy: currentUser.id,
+            updatedBy: actorId,
             updatedAt: now,
           };
 
@@ -575,7 +576,7 @@ export async function POST(request: Request) {
           } else {
             const [created] = await db
               .insert(equipment)
-              .values({ ...recordValues, createdBy: currentUser.id })
+              .values({ ...recordValues, createdBy: actorId })
               .returning({ id: equipment.id });
             equipmentId = created.id;
             createdCount += 1;
@@ -585,7 +586,7 @@ export async function POST(request: Request) {
             equipmentId,
             action: "imported",
             storeId,
-            actorId: currentUser.id,
+            actorId,
             details: JSON.stringify({ row: input.sourceRow ?? index + 2 }),
           });
         } catch (error) {

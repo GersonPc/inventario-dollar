@@ -175,7 +175,20 @@ test("provides editable device model profiles with R2 image uploads", async () =
   assert.match(appSource, /Subir imagen/);
   assert.match(appSource, /Información técnica/);
   assert.match(profileApi, /env\.DEVICE_IMAGES\.put/);
+  assert.match(profileApi, /isPublicAccessEnabled\(\) \? null : currentUser\.id/);
   assert.match(profileApi, /maximumImageBytes = 5 \* 1024 \* 1024/);
   assert.match(imageApi, /env\.DEVICE_IMAGES\.get/);
   assert.match(imageApi, /x-content-type-options/);
+});
+
+test("does not write the temporary public identity into user foreign keys", async () => {
+  const apiSource = await readFile(
+    new URL("../app/api/inventory/route.ts", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(apiSource, /const actorId = isPublicAccessEnabled\(\) \? null : currentUser\.id/);
+  assert.match(apiSource, /createdBy: actorId/);
+  assert.match(apiSource, /updatedBy: actorId/);
+  assert.match(apiSource, /actorId,/);
 });

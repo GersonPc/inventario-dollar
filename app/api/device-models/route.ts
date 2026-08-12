@@ -3,7 +3,11 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { deviceModelProfiles } from "@/db/schema";
 import { deviceModelCatalogKey } from "@/lib/device-models";
-import { canWrite, getInventoryUser } from "@/lib/inventory-auth";
+import {
+  canWrite,
+  getInventoryUser,
+  isPublicAccessEnabled,
+} from "@/lib/inventory-auth";
 
 const allowedImageTypes = new Map([
   ["image/jpeg", "jpg"],
@@ -76,6 +80,7 @@ export async function POST(request: Request) {
 
     const catalogKey = deviceModelCatalogKey(deviceType, model);
     const db = getDb();
+    const updatedBy = isPublicAccessEnabled() ? null : currentUser.id;
     const [existing] = await db
       .select()
       .from(deviceModelProfiles)
@@ -127,7 +132,7 @@ export async function POST(request: Request) {
         specifications: nullable(specifications),
         imageKey,
         imageContentType,
-        updatedBy: currentUser.id,
+        updatedBy,
       })
       .onConflictDoUpdate({
         target: deviceModelProfiles.catalogKey,
@@ -139,7 +144,7 @@ export async function POST(request: Request) {
           specifications: nullable(specifications),
           imageKey,
           imageContentType,
-          updatedBy: currentUser.id,
+          updatedBy,
           updatedAt: now,
         },
       });
