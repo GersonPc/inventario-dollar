@@ -488,7 +488,7 @@ p {
 
 .device-model-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(310px, 100%), 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
 }
 
@@ -1253,6 +1253,12 @@ p {
   }
 }
 
+@media (max-width: 1180px) {
+  .device-model-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 1050px) {
   .app-shell {
     grid-template-columns: 82px minmax(0, 1fr);
@@ -1422,6 +1428,10 @@ p {
   }
 
   .device-profile-body {
+    grid-template-columns: 1fr;
+  }
+
+  .device-model-grid {
     grid-template-columns: 1fr;
   }
 
