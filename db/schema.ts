@@ -66,6 +66,9 @@ export const equipment = sqliteTable(
     }),
     storeReference: text("store_reference"),
     deliveredAt: text("delivered_at"),
+    isNetworkDevice: integer("is_network_device", { mode: "boolean" })
+      .notNull()
+      .default(false),
     macAddress: text("mac_address"),
     ipAddress: text("ip_address"),
     credentialCiphertext: text("credential_ciphertext"),

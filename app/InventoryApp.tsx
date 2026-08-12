@@ -40,6 +40,7 @@ type Equipment = {
   storeName: string | null;
   storeReference: string | null;
   deliveredAt: string | null;
+  isNetworkDevice: boolean;
   macAddress: string | null;
   ipAddress: string | null;
   notes: string | null;
@@ -110,6 +111,7 @@ type EquipmentForm = {
   storeId: string;
   storeReference: string;
   deliveredAt: string;
+  isNetworkDevice: boolean;
   macAddress: string;
   ipAddress: string;
   password: string;
@@ -142,6 +144,7 @@ function emptyEquipment(barcode = ""): EquipmentForm {
     storeId: "",
     storeReference: "",
     deliveredAt: "",
+    isNetworkDevice: false,
     macAddress: "",
     ipAddress: "",
     password: "",
@@ -404,6 +407,7 @@ export function InventoryApp() {
       storeId: item.storeId ? String(item.storeId) : "",
       storeReference: item.storeReference ?? "",
       deliveredAt: item.deliveredAt?.slice(0, 10) ?? "",
+      isNetworkDevice: item.isNetworkDevice,
       macAddress: item.macAddress ?? "",
       ipAddress: item.ipAddress ?? "",
       password: "",
@@ -777,6 +781,7 @@ export function InventoryApp() {
       "Nombre de tienda",
       "Sala",
       "Fecha de entrega",
+      "Dispositivo de red",
       "MAC Address",
       "IP",
       "Notas",
@@ -794,6 +799,7 @@ export function InventoryApp() {
       item.storeName,
       item.storeReference,
       item.deliveredAt,
+      item.isNetworkDevice ? "SI" : "NO",
       item.macAddress,
       item.ipAddress,
       item.notes,
@@ -1058,7 +1064,11 @@ export function InventoryApp() {
                             <td><span className="barcode">{item.barcode}</span>{item.barcode.includes("-PENDIENTE-") ? <div className="muted serial-warning">Corregir serie</div> : null}</td>
                             <td><div className="device-name">{item.model}</div><div className="device-type">{item.deviceType}</div>{item.itemKind === "material" ? <span className="badge amber">Material</span> : null}</td>
                             <td>{item.quantity.toLocaleString("es-GT")}</td>
-                            <td><div>{item.ipAddress || "—"}</div><div className="muted">{item.macAddress || "Sin MAC"}</div></td>
+                            <td>
+                              {item.isNetworkDevice ? (
+                                <><div>{item.ipAddress || "Sin IP"}</div><div className="muted">{item.macAddress || "Sin MAC"}</div></>
+                              ) : <span className="muted">No aplica</span>}
+                            </td>
                             <td>
                               {item.delivered ? (
                                 <span className="badge blue">Entregado</span>
@@ -1262,7 +1272,7 @@ export function InventoryApp() {
             <div className="modal-body">
               {!editing.id && writable ? <div className="notice batch-entry-note">Captura continua activa: después de guardar conservaremos los datos y seleccionaremos el No. de Serie para recibir el siguiente escaneo.</div> : null}
               <div className="form-grid">
-                <FormField label="Clase de artículo" id="item-kind"><select id="item-kind" className="select" value={editing.itemKind} onChange={(event) => { const itemKind = event.target.value as ItemKind; setEditing({ ...editing, itemKind, quantity: itemKind === "equipment" ? 1 : Math.max(1, editing.quantity) }); }} disabled={!writable || Boolean(editing.id)}><option value="equipment">Equipo con No. de Serie</option><option value="material">Material por cantidad</option></select></FormField>
+                <FormField label="Clase de artículo" id="item-kind"><select id="item-kind" className="select" value={editing.itemKind} onChange={(event) => { const itemKind = event.target.value as ItemKind; setEditing({ ...editing, itemKind, quantity: itemKind === "equipment" ? 1 : Math.max(1, editing.quantity), isNetworkDevice: itemKind === "equipment" && editing.isNetworkDevice }); }} disabled={!writable || Boolean(editing.id)}><option value="equipment">Equipo con No. de Serie</option><option value="material">Material por cantidad</option></select></FormField>
                 <FormField label={editing.itemKind === "material" ? "Código de material (opcional)" : "No. de Serie"} id="equipment-barcode"><input ref={barcodeInput} id="equipment-barcode" className="input" value={editing.barcode} onChange={(event) => setEditing({ ...editing, barcode: event.target.value })} required={editing.itemKind === "equipment"} readOnly={!writable} placeholder={editing.itemKind === "material" ? "Se genera automáticamente si queda vacío" : "Escanea o escribe la serie"} /></FormField>
                 <FormField label="Cantidad" id="quantity"><input id="quantity" type="number" min="1" step="1" className="input" value={editing.quantity} onChange={(event) => setEditing({ ...editing, quantity: Math.max(1, Number(event.target.value) || 1) })} required disabled={editing.itemKind === "equipment" || !writable} /></FormField>
                 <FormField label="Fecha de ingreso (opcional)" id="received-at"><input id="received-at" type="date" className="input" value={editing.receivedAt} onChange={(event) => setEditing({ ...editing, receivedAt: event.target.value })} readOnly={!writable} /></FormField>
@@ -1273,10 +1283,11 @@ export function InventoryApp() {
                 <FormField label="Tienda asignada" id="store"><select id="store" className="select" value={editing.storeId} onChange={(event) => setEditing({ ...editing, storeId: event.target.value, storeReference: event.target.value ? "" : editing.storeReference })} required={editing.delivered && !editing.storeReference} disabled={!writable}><option value="">Sin asignar</option>{data.stores.map((store) => <option key={store.id} value={store.id}>{store.storeNumber} · {store.name}</option>)}</select></FormField>
                 {editing.storeReference ? <FormField label="Referencia de sala importada" id="store-reference"><input id="store-reference" className="input" value={editing.storeReference} onChange={(event) => setEditing({ ...editing, storeReference: event.target.value })} readOnly={!writable} /></FormField> : null}
                 <FormField label="Fecha de entrega" id="delivered-at"><input id="delivered-at" type="date" className="input" value={editing.deliveredAt} onChange={(event) => setEditing({ ...editing, deliveredAt: event.target.value })} disabled={!editing.delivered || !writable} /></FormField>
-                {editing.itemKind === "equipment" ? <FormField label="MAC Address" id="mac-address"><input id="mac-address" className="input" value={editing.macAddress} onChange={(event) => setEditing({ ...editing, macAddress: event.target.value })} placeholder="AA:BB:CC:DD:EE:FF" readOnly={!writable} /></FormField> : null}
-                {editing.itemKind === "equipment" ? <FormField label="Dirección IP" id="ip-address"><input id="ip-address" className="input" value={editing.ipAddress} onChange={(event) => setEditing({ ...editing, ipAddress: event.target.value })} placeholder="192.168.1.10" readOnly={!writable} /></FormField> : null}
-                {writable && editing.itemKind === "equipment" ? <FormField label={editing.hasCredential ? "Nueva contraseña (opcional)" : "Contraseña del equipo"} id="password"><input id="password" type="password" className="input" value={editing.password} onChange={(event) => setEditing({ ...editing, password: event.target.value })} autoComplete="new-password" placeholder={editing.hasCredential ? "Dejar vacío para conservar" : "Opcional"} /></FormField> : null}
-                {editing.itemKind === "equipment" && editing.id && editing.hasCredential && data.currentUser.role === "admin" ? <div className="field"><label htmlFor="saved-password">Contraseña guardada</label><div className="credential-row"><input id="saved-password" className="input" value={revealedPassword || "••••••••••••"} readOnly /><button className="secondary-button" type="button" onClick={() => void revealCredential()} disabled={saving}>{revealedPassword ? "Ocultar" : "Mostrar"}</button></div></div> : null}
+                {editing.itemKind === "equipment" ? <div className="field full network-device-toggle"><label htmlFor="network-device">Datos de red</label><div className="toggle-row"><input id="network-device" type="checkbox" checked={editing.isNetworkDevice} onChange={(event) => setEditing({ ...editing, isNetworkDevice: event.target.checked })} disabled={!writable} /><span>Es un dispositivo de red</span></div><small>Actívalo para registrar MAC, IP o contraseña.</small></div> : null}
+                {editing.itemKind === "equipment" && editing.isNetworkDevice ? <FormField label="MAC Address" id="mac-address"><input id="mac-address" className="input" value={editing.macAddress} onChange={(event) => setEditing({ ...editing, macAddress: event.target.value })} placeholder="AA:BB:CC:DD:EE:FF" readOnly={!writable} /></FormField> : null}
+                {editing.itemKind === "equipment" && editing.isNetworkDevice ? <FormField label="Dirección IP" id="ip-address"><input id="ip-address" className="input" value={editing.ipAddress} onChange={(event) => setEditing({ ...editing, ipAddress: event.target.value })} placeholder="192.168.1.10" readOnly={!writable} /></FormField> : null}
+                {writable && editing.itemKind === "equipment" && editing.isNetworkDevice ? <FormField label={editing.hasCredential ? "Nueva contraseña (opcional)" : "Contraseña del equipo"} id="password"><input id="password" type="password" className="input" value={editing.password} onChange={(event) => setEditing({ ...editing, password: event.target.value })} autoComplete="new-password" placeholder={editing.hasCredential ? "Dejar vacío para conservar" : "Opcional"} /></FormField> : null}
+                {editing.itemKind === "equipment" && editing.isNetworkDevice && editing.id && editing.hasCredential && data.currentUser.role === "admin" ? <div className="field"><label htmlFor="saved-password">Contraseña guardada</label><div className="credential-row"><input id="saved-password" className="input" value={revealedPassword || "••••••••••••"} readOnly /><button className="secondary-button" type="button" onClick={() => void revealCredential()} disabled={saving}>{revealedPassword ? "Ocultar" : "Mostrar"}</button></div></div> : null}
                 <FormField label="Notas" id="notes" full><textarea id="notes" className="textarea" value={editing.notes} onChange={(event) => setEditing({ ...editing, notes: event.target.value })} readOnly={!writable} placeholder="Observaciones o detalles adicionales" /></FormField>
               </div>
             </div>

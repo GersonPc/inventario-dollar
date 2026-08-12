@@ -14,6 +14,7 @@ export type CsvRecord = {
   storeName: string;
   storeReference: string | null;
   deliveredAt: string | null;
+  isNetworkDevice: boolean;
   macAddress: string | null;
   ipAddress: string | null;
   password: string | null;
@@ -144,6 +145,7 @@ const aliases: Record<string, string[]> = {
   storeNumber: ["no tienda", "n tienda", "numero de tienda", "numero tienda"],
   storeName: ["nombre de tienda", "nombre tienda", "tienda"],
   deliveredAt: ["fecha de entrega", "entregado el", "delivered at"],
+  isNetworkDevice: ["dispositivo de red", "equipo de red", "es de red", "network device"],
   macAddress: ["mac address", "mac adress", "mac"],
   ipAddress: ["ip", "ip address", "direccion ip"],
   password: ["password", "contrasena", "clave"],
@@ -228,6 +230,9 @@ export function mapInventoryCsv(text: string): CsvRecord[] {
         .replace(/\s*cantidad\s+\d+\s+unidades?\s*/i, " ")
         .replace(/\s{2,}/g, " ")
         .trim();
+      const macAddress = value(row, "macAddress") || null;
+      const ipAddress = value(row, "ipAddress") || null;
+      const password = value(row, "password") || null;
 
       return {
         barcode,
@@ -242,9 +247,12 @@ export function mapInventoryCsv(text: string): CsvRecord[] {
         storeName: value(row, "storeName"),
         storeReference: cleanStoreReference(value(row, "storeReference")),
         deliveredAt: normalizeDate(value(row, "deliveredAt")) || null,
-        macAddress: value(row, "macAddress") || null,
-        ipAddress: value(row, "ipAddress") || null,
-        password: value(row, "password") || null,
+        isNetworkDevice:
+          itemKind === "equipment" &&
+          (parseBoolean(value(row, "isNetworkDevice")) || Boolean(macAddress || ipAddress || password)),
+        macAddress,
+        ipAddress,
+        password,
         notes,
         sourceRow,
       };

@@ -180,12 +180,16 @@ tienda.
 
 ## 11. Datos de red y contraseñas
 
-Los equipos pueden almacenar:
+En la ficha de un equipo, activa **Es un dispositivo de red** para mostrar:
 
 - MAC Address;
 - dirección IP;
 - contraseña;
-- notas.
+
+Si el equipo no utiliza red, deja el check desactivado y esos campos no
+aparecerán. La selección se conserva aunque MAC, IP y contraseña todavía estén
+vacíos. Los registros anteriores que ya contienen alguno de esos datos quedan
+marcados automáticamente como dispositivos de red.
 
 La contraseña se cifra antes de guardarse. Solamente un administrador puede
 solicitar que se muestre. Si se edita un equipo y el campo de nueva contraseña

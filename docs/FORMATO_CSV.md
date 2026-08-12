@@ -22,7 +22,7 @@ La plantilla descargable se encuentra en
 Encabezados recomendados:
 
 ```csv
-No. de Serie,Modelo,Tipo de dispositivo,Clase de articulo,Cantidad,Fecha de ingreso,Entregado,Funciona,No. Tienda,Nombre de tienda,Fecha de entrega,MAC Address,IP,Password,Notas
+No. de Serie,Modelo,Tipo de dispositivo,Clase de articulo,Cantidad,Fecha de ingreso,Entregado,Funciona,No. Tienda,Nombre de tienda,Fecha de entrega,Dispositivo de red,MAC Address,IP,Password,Notas
 ```
 
 ## Columnas
@@ -40,6 +40,7 @@ No. de Serie,Modelo,Tipo de dispositivo,Clase de articulo,Cantidad,Fecha de ingr
 | No. Tienda | Opcional | Opcional | Código oficial de tienda. |
 | Nombre de tienda | Opcional | Opcional | Nombre oficial de tienda. |
 | Fecha de entrega | Opcional | Opcional | Solo se utiliza cuando está entregado. |
+| Dispositivo de red | Opcional | No aplica | `SI` habilita los datos MAC, IP y contraseña. También se detecta automáticamente si alguno de ellos contiene información. |
 | MAC Address | Opcional | No aplica | Dirección física de red. |
 | IP | Opcional | No aplica | Dirección IP. |
 | Password | Opcional | No aplica | Se cifra antes de almacenarse. |
@@ -62,6 +63,7 @@ encabezados aceptados están:
 | Número de tienda | `No. Tienda`, `Número de tienda` |
 | Nombre de tienda | `Nombre de tienda`, `Tienda` |
 | Cantidad | `Cantidad`, `Unidades`, `Quantity` |
+| Dispositivo de red | `Equipo de red`, `Es de red`, `Network device` |
 
 ## Valores de condición
 
@@ -160,7 +162,8 @@ coinciden con la búsqueda y los filtros actuales. Usa UTF-8 y punto y coma como
 separador, por lo que es compatible con Excel y con este importador.
 
 Incluye la referencia temporal de **Sala**, pero excluye las contraseñas por
-seguridad. Al abrir el resultado en Excel, importa **No. de Serie** como texto
+seguridad. La columna **Dispositivo de red** conserva la selección aunque MAC e
+IP todavía estén vacíos. Al abrir el resultado en Excel, importa **No. de Serie** como texto
 para evitar notación científica o pérdida de ceros iniciales.
 
 ## Preparar archivos desde Excel

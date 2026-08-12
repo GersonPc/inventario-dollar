@@ -37,6 +37,7 @@ type EquipmentInput = {
   storeName?: string;
   storeReference?: string | null;
   deliveredAt?: string | null;
+  isNetworkDevice?: boolean;
   macAddress?: string | null;
   ipAddress?: string | null;
   password?: string | null;
@@ -187,6 +188,7 @@ export async function GET() {
         storeName: stores.name,
         storeReference: equipment.storeReference,
         deliveredAt: equipment.deliveredAt,
+        isNetworkDevice: equipment.isNetworkDevice,
         macAddress: equipment.macAddress,
         ipAddress: equipment.ipAddress,
         notes: equipment.notes,
@@ -440,6 +442,7 @@ export async function POST(request: Request) {
         deliveredAt: input.delivered
           ? nullable(input.deliveredAt) ?? now.slice(0, 10)
           : null,
+        isNetworkDevice: kind === "equipment" && Boolean(input.isNetworkDevice),
         macAddress: normalizeMac(input.macAddress),
         ipAddress: nullable(input.ipAddress),
         notes: nullable(input.notes),
@@ -549,6 +552,10 @@ export async function POST(request: Request) {
             deliveredAt: input.delivered
               ? nullable(input.deliveredAt) ?? now.slice(0, 10)
               : null,
+            isNetworkDevice:
+              kind === "equipment" &&
+              (Boolean(input.isNetworkDevice) ||
+                Boolean(clean(input.macAddress) || clean(input.ipAddress) || password)),
             macAddress: normalizeMac(input.macAddress),
             ipAddress: nullable(input.ipAddress),
             credentialCiphertext,

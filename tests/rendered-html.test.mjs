@@ -51,6 +51,7 @@ test("declares durable storage, protected credentials and temporary public acces
   assert.match(schema, /itemKind/);
   assert.match(schema, /quantity/);
   assert.match(schema, /storeReference/);
+  assert.match(schema, /isNetworkDevice/);
   assert.match(schema, /equipmentMovements/);
   assert.match(schema, /deviceModelProfiles/);
   assert.match(schema, /idx_device_model_profiles_catalog_key_unique/);
@@ -148,6 +149,18 @@ test("allows a writable user to delete an existing item from its edit dialog", a
   assert.match(appSource, /const deleteEquipment/);
   assert.match(appSource, /Eliminar artículo/);
   assert.match(appSource, /Esta acción no se puede deshacer/);
+});
+
+test("shows network fields only when the device is marked for network use", async () => {
+  const appSource = await readFile(
+    new URL("../app/InventoryApp.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(appSource, /Es un dispositivo de red/);
+  assert.match(appSource, /editing\.isNetworkDevice \? <FormField label="MAC Address"/);
+  assert.match(appSource, /editing\.isNetworkDevice \? <FormField label="Dirección IP"/);
+  assert.match(appSource, /Dispositivo de red/);
 });
 
 test("provides editable device model profiles with R2 image uploads", async () => {

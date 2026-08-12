@@ -1192,6 +1192,24 @@ p {
   min-height: 42px;
 }
 
+.network-device-toggle {
+  padding: 13px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #f7f8f4;
+}
+
+.network-device-toggle .toggle-row {
+  min-height: 30px;
+}
+
+.network-device-toggle small {
+  display: block;
+  margin-top: 2px;
+  color: var(--ink-muted);
+  font-size: 11px;
+}
+
 .toggle-row input {
   width: 18px;
   height: 18px;

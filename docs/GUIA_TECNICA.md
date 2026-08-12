@@ -80,6 +80,7 @@ Tabla central para equipos y materiales.
 | `condition` | `working`, `not_working` o `unknown`. |
 | `store_id` | Relación opcional con una tienda oficial. |
 | `store_reference` | Código o nombre importado todavía sin relacionar. |
+| `is_network_device` | Indica si la ficha debe habilitar MAC, IP y credencial; no depende de que esos valores estén completos. |
 | `credential_ciphertext` | Contraseña cifrada; nunca contiene texto plano. |
 | `created_by`, `updated_by` | Usuario responsable del cambio. |
 
