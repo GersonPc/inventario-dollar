@@ -268,8 +268,14 @@ p {
 }
 
 .danger-button {
+  border-color: #efc9c5;
   background: var(--red-soft);
   color: var(--red);
+}
+
+.danger-button:hover {
+  border-color: #dc958e;
+  background: #f5d8d5;
 }
 
 .scanner-card {
@@ -844,6 +850,10 @@ p {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+}
+
+.modal-delete-button {
+  margin-right: auto;
 }
 
 .camera-backdrop {

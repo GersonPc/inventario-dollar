@@ -114,6 +114,15 @@ La condición puede ser:
 La fecha de ingreso es opcional. Cuando no se conoce, queda vacía y se muestra
 como un guion o como fecha desconocida en las vistas correspondientes.
 
+## Eliminar un artículo
+
+1. En la tabla de inventario, selecciona **Editar** en el artículo.
+2. Baja hasta el final de la ficha.
+3. Selecciona **Eliminar artículo** y confirma el aviso.
+
+La eliminación es permanente: quita el equipo o material y su historial de
+movimientos. No elimina la tienda ni afecta otros artículos.
+
 ## 8. Tiendas y entregas
 
 ### Crear una tienda

@@ -377,6 +377,23 @@ export async function POST(request: Request) {
       return jsonError("Tu rol permite consultar, pero no modificar datos.", 403);
     }
 
+    if (payload.action === "deleteEquipment") {
+      const equipmentId = Number(payload.equipmentId);
+      if (!Number.isInteger(equipmentId) || equipmentId <= 0) {
+        return jsonError("Artículo inválido.");
+      }
+      const [existing] = await db
+        .select({ barcode: equipment.barcode })
+        .from(equipment)
+        .where(eq(equipment.id, equipmentId))
+        .limit(1);
+      if (!existing) return jsonError("El artículo ya no existe.", 404);
+
+      // La clave foránea de movimientos aplica ON DELETE CASCADE.
+      await db.delete(equipment).where(eq(equipment.id, equipmentId));
+      return Response.json({ ok: true, barcode: existing.barcode });
+    }
+
     if (payload.action === "saveStore") {
       const input = payload.store ?? {};
       const storeNumber = clean(input.storeNumber);

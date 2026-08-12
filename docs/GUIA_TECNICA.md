@@ -85,6 +85,10 @@ Auditoría de acciones: `received`, `updated`, `delivered`, `returned` e
 
 Cada movimiento conserva artículo, tienda, usuario, detalles y fecha.
 
+Al eliminar un artículo, la clave foránea `equipment_movements.equipment_id`
+aplica `ON DELETE CASCADE`: también se eliminan sus movimientos. La operación
+no afecta la tabla de tiendas ni otros artículos.
+
 ## 4. Autenticación y autorización
 
 ### Modo público temporal

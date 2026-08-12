@@ -61,6 +61,8 @@ test("declares durable storage, protected credentials and temporary public acces
   assert.match(accessSource, /audience/);
   assert.match(apiSource, /payload\.action === "inviteUser"/);
   assert.match(apiSource, /payload\.action === "toggleUser"/);
+  assert.match(apiSource, /payload\.action === "deleteEquipment"/);
+  assert.match(apiSource, /db\.delete\(equipment\)/);
   assert.match(csvTemplate, /No\. de Serie/);
   assert.match(csvTemplate, /Cantidad/);
   assert.match(csvTemplate, /MAC Address/);
@@ -131,4 +133,15 @@ test("removes user administration from the application interface", async () => {
   assert.doesNotMatch(appSource, /view === "users"/);
   assert.doesNotMatch(appSource, /Usuarios autorizados/);
   assert.doesNotMatch(appSource, /Autorizar usuario/);
+});
+
+test("allows a writable user to delete an existing item from its edit dialog", async () => {
+  const appSource = await readFile(
+    new URL("../app/InventoryApp.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(appSource, /const deleteEquipment/);
+  assert.match(appSource, /Eliminar artículo/);
+  assert.match(appSource, /Esta acción no se puede deshacer/);
 });

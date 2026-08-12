@@ -473,6 +473,28 @@ export function InventoryApp() {
     }
   };
 
+  const deleteEquipment = async () => {
+    if (!editing?.id) return;
+    const articleName = editing.model || editing.barcode;
+    const confirmed = window.confirm(
+      `¿Eliminar “${articleName}” (${editing.barcode})? Esta acción no se puede deshacer y también eliminará su historial de movimientos.`,
+    );
+    if (!confirmed) return;
+
+    setSaving(true);
+    setError("");
+    try {
+      await postAction({ action: "deleteEquipment", equipmentId: editing.id });
+      setEditing(null);
+      setNotice("Artículo eliminado correctamente.");
+      await loadInventory();
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : "No se pudo eliminar el artículo.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const saveStore = async (event: FormEvent) => {
     event.preventDefault();
     setSaving(true);
@@ -947,7 +969,11 @@ export function InventoryApp() {
                 <FormField label="Notas" id="notes" full><textarea id="notes" className="textarea" value={editing.notes} onChange={(event) => setEditing({ ...editing, notes: event.target.value })} readOnly={!writable} placeholder="Observaciones o detalles adicionales" /></FormField>
               </div>
             </div>
-            <div className="modal-actions"><button className="secondary-button" type="button" onClick={() => setEditing(null)}>Cerrar</button>{writable ? <button className="primary-button" type="submit" disabled={saving}>{saving ? "Guardando…" : editing.id ? "Guardar cambios" : "Guardar y continuar"}</button> : null}</div>
+            <div className="modal-actions">
+              {writable && editing.id ? <button className="danger-button modal-delete-button" type="button" onClick={() => void deleteEquipment()} disabled={saving}>Eliminar artículo</button> : null}
+              <button className="secondary-button" type="button" onClick={() => setEditing(null)} disabled={saving}>Cerrar</button>
+              {writable ? <button className="primary-button" type="submit" disabled={saving}>{saving ? "Guardando…" : editing.id ? "Guardar cambios" : "Guardar y continuar"}</button> : null}
+            </div>
           </form>
         </div>
       ) : null}
