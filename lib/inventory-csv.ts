@@ -22,6 +22,12 @@ export type CsvRecord = {
   sourceRow: number;
 };
 
+export type StoreCsvRecord = {
+  storeNumber: string;
+  name: string;
+  sourceRow: number;
+};
+
 function normalized(value: unknown): string {
   return String(value ?? "")
     .normalize("NFD")
@@ -152,6 +158,26 @@ const aliases: Record<string, string[]> = {
   notes: ["notas", "observaciones", "comentarios"],
 };
 
+const storeAliases: Record<"storeNumber" | "name", string[]> = {
+  storeNumber: [
+    "no de tienda",
+    "no tienda",
+    "n tienda",
+    "numero de tienda",
+    "numero tienda",
+    "codigo de tienda",
+    "codigo tienda",
+    "codigo de sala",
+  ],
+  name: [
+    "nombre de tienda",
+    "nombre tienda",
+    "tienda",
+    "nombre de sala",
+    "sala",
+  ],
+};
+
 function headerIndex(rows: string[][]): number {
   let bestIndex = -1;
   let bestScore = 0;
@@ -257,4 +283,43 @@ export function mapInventoryCsv(text: string): CsvRecord[] {
         sourceRow,
       };
     });
+}
+
+export function mapStoresCsv(text: string): StoreCsvRecord[] {
+  const rows = parseCsvRows(text);
+  let headersAt = -1;
+
+  for (let rowIndex = 0; rowIndex < Math.min(rows.length, 10); rowIndex += 1) {
+    const headers = rows[rowIndex].map(normalized);
+    const numberIndex = storeAliases.storeNumber
+      .map((alias) => headers.indexOf(alias))
+      .find((index) => index >= 0) ?? -1;
+    const nameIndex = storeAliases.name
+      .map((alias) => headers.indexOf(alias))
+      .find((index) => index >= 0) ?? -1;
+
+    if (numberIndex >= 0 && nameIndex >= 0 && numberIndex !== nameIndex) {
+      headersAt = rowIndex;
+      break;
+    }
+  }
+
+  if (headersAt < 0) return [];
+
+  const headers = rows[headersAt].map(normalized);
+  const numberIndex = storeAliases.storeNumber
+    .map((alias) => headers.indexOf(alias))
+    .find((index) => index >= 0) ?? -1;
+  const nameIndex = storeAliases.name
+    .map((alias) => headers.indexOf(alias))
+    .find((index) => index >= 0) ?? -1;
+
+  return rows
+    .slice(headersAt + 1)
+    .filter((row) => row.some((cell) => cell.trim().length > 0))
+    .map((row, index) => ({
+      storeNumber: row[numberIndex]?.trim() ?? "",
+      name: row[nameIndex]?.trim() ?? "",
+      sourceRow: headersAt + index + 2,
+    }));
 }

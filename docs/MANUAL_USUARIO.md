@@ -157,6 +157,20 @@ movimientos. No elimina la tienda ni afecta otros artículos.
 
 El número de tienda debe ser único.
 
+### Subir el listado de tiendas
+
+1. Abre **Tiendas**.
+2. En **Subir listado de tiendas**, descarga la plantilla si la necesitas.
+3. Prepara un CSV con las columnas **No. de Tienda** y **Nombre de tienda**.
+4. Arrastra el archivo o selecciona **Elegir archivo**.
+5. Revisa la vista previa, las tiendas nuevas, las existentes y las filas
+   incompletas.
+6. Selecciona **Importar tiendas**.
+
+Cuando el número todavía no existe, se crea la tienda. Si ya existe, se
+actualiza su nombre sin cambiar su identificador interno ni las asignaciones de
+equipos. Las filas repetidas o incompletas se omiten y se informan al terminar.
+
 ### Entregar un artículo
 
 1. Abre la ficha del equipo o material.
@@ -241,6 +255,8 @@ se haya activado de nuevo.
 - Guarda el archivo como CSV UTF-8.
 - Mantén una fila reconocible de encabezados.
 - No elimines las columnas Modelo y Tipo de equipo/dispositivo.
+- Para el listado de tiendas, conserva **No. de Tienda** y **Nombre de tienda**
+  como columnas separadas.
 
 ### Una fila fue omitida
 

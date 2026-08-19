@@ -45,10 +45,17 @@ type EquipmentInput = {
   sourceRow?: number;
 };
 
+type StoreInput = {
+  storeNumber?: string;
+  name?: string;
+  sourceRow?: number;
+};
+
 type ActionPayload = {
   action?: string;
   equipment?: EquipmentInput;
   records?: EquipmentInput[];
+  storeRecords?: StoreInput[];
   equipmentId?: number;
   store?: { id?: number; storeNumber?: string; name?: string };
   userId?: string;
@@ -418,6 +425,87 @@ export async function POST(request: Request) {
           set: { name, updatedAt: new Date().toISOString() },
         });
       return Response.json({ ok: true });
+    }
+
+    if (payload.action === "importStores") {
+      const records = Array.isArray(payload.storeRecords) ? payload.storeRecords : [];
+      if (!records.length) return jsonError("El archivo no contiene tiendas.");
+      if (records.length > 5000) {
+        return jsonError("El archivo supera el límite de 5,000 tiendas.");
+      }
+
+      let createdCount = 0;
+      let updatedCount = 0;
+      let unchangedCount = 0;
+      let skippedCount = 0;
+      const errors: string[] = [];
+      const seenStoreNumbers = new Set<string>();
+
+      for (let index = 0; index < records.length; index += 1) {
+        const input = records[index];
+        const storeNumber = clean(input.storeNumber);
+        const name = clean(input.name);
+        const rowNumber = input.sourceRow ?? index + 2;
+
+        if (!storeNumber || !name) {
+          skippedCount += 1;
+          if (errors.length < 20) {
+            errors.push(`Fila ${rowNumber}: el número y el nombre de tienda son obligatorios.`);
+          }
+          continue;
+        }
+        if (storeNumber.length > 80 || name.length > 200) {
+          skippedCount += 1;
+          if (errors.length < 20) {
+            errors.push(`Fila ${rowNumber}: el número o el nombre de tienda es demasiado largo.`);
+          }
+          continue;
+        }
+        if (seenStoreNumbers.has(storeNumber)) {
+          skippedCount += 1;
+          if (errors.length < 20) {
+            errors.push(`Fila ${rowNumber}: la tienda ${storeNumber} está repetida en el archivo.`);
+          }
+          continue;
+        }
+        seenStoreNumbers.add(storeNumber);
+
+        try {
+          const [existing] = await db
+            .select({ id: stores.id, name: stores.name })
+            .from(stores)
+            .where(eq(stores.storeNumber, storeNumber))
+            .limit(1);
+
+          if (!existing) {
+            await db.insert(stores).values({ storeNumber, name });
+            createdCount += 1;
+          } else if (existing.name !== name) {
+            await db
+              .update(stores)
+              .set({ name, updatedAt: new Date().toISOString() })
+              .where(eq(stores.id, existing.id));
+            updatedCount += 1;
+          } else {
+            unchangedCount += 1;
+          }
+        } catch (error) {
+          skippedCount += 1;
+          if (errors.length < 20) {
+            errors.push(
+              `Fila ${rowNumber}: ${error instanceof Error ? error.message : "error inesperado"}`,
+            );
+          }
+        }
+      }
+
+      return Response.json({
+        createdCount,
+        updatedCount,
+        unchangedCount,
+        skippedCount,
+        errors,
+      });
     }
 
     if (payload.action === "saveEquipment") {

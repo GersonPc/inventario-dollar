@@ -13,9 +13,11 @@ import {
 } from "react";
 import {
   mapInventoryCsv,
+  mapStoresCsv,
   type CsvRecord,
   type InventoryCondition as Condition,
   type InventoryItemKind as ItemKind,
+  type StoreCsvRecord,
 } from "@/lib/inventory-csv";
 import {
   deviceModelCatalogKey,
@@ -245,6 +247,9 @@ export function InventoryApp() {
   const [saving, setSaving] = useState(false);
   const [revealedPassword, setRevealedPassword] = useState("");
   const [storeForm, setStoreForm] = useState({ storeNumber: "", name: "" });
+  const [storeCsvRecords, setStoreCsvRecords] = useState<StoreCsvRecord[]>([]);
+  const [storeCsvName, setStoreCsvName] = useState("");
+  const [storeCsvDragging, setStoreCsvDragging] = useState(false);
   const [csvRecords, setCsvRecords] = useState<CsvRecord[]>([]);
   const [csvName, setCsvName] = useState("");
   const [dragging, setDragging] = useState(false);
@@ -252,6 +257,7 @@ export function InventoryApp() {
   const [cameraScannerStatus, setCameraScannerStatus] = useState("");
   const [cameraScannerError, setCameraScannerError] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
+  const storeFileInput = useRef<HTMLInputElement>(null);
   const barcodeInput = useRef<HTMLInputElement>(null);
   const cameraVideo = useRef<HTMLVideoElement>(null);
   const cameraScannerControls = useRef<CameraScannerControls | null>(null);
@@ -385,6 +391,26 @@ export function InventoryApp() {
     }),
     [csvRecords],
   );
+
+  const storeCsvSummary = useMemo(() => {
+    const existingStoreNumbers = new Set(
+      (data?.stores ?? []).map((store) => store.storeNumber.trim()),
+    );
+    const validRecords = storeCsvRecords.filter(
+      (record) => record.storeNumber.trim() && record.name.trim(),
+    );
+
+    return {
+      total: storeCsvRecords.length,
+      newStores: validRecords.filter(
+        (record) => !existingStoreNumbers.has(record.storeNumber.trim()),
+      ).length,
+      existingStores: validRecords.filter((record) =>
+        existingStoreNumbers.has(record.storeNumber.trim()),
+      ).length,
+      invalid: storeCsvRecords.length - validRecords.length,
+    };
+  }, [data?.stores, storeCsvRecords]);
 
   const openEquipment = useCallback((item?: Equipment, barcode = "") => {
     setError("");
@@ -709,6 +735,61 @@ export function InventoryApp() {
       await loadInventory();
     } catch (storeError) {
       setError(storeError instanceof Error ? storeError.message : "No se pudo guardar la tienda.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const readStoreCsvFile = async (file?: File) => {
+    if (!file) return;
+    setError("");
+    setNotice("");
+    try {
+      const records = mapStoresCsv(await file.text());
+      if (!records.length) {
+        throw new Error(
+          "No se encontraron las columnas No. de Tienda y Nombre de tienda.",
+        );
+      }
+      setStoreCsvName(file.name);
+      setStoreCsvRecords(records);
+    } catch (fileError) {
+      setStoreCsvName("");
+      setStoreCsvRecords([]);
+      setError(
+        fileError instanceof Error
+          ? fileError.message
+          : "No se pudo leer el listado de tiendas.",
+      );
+    }
+  };
+
+  const importStores = async () => {
+    setSaving(true);
+    setError("");
+    try {
+      const result = await postAction({
+        action: "importStores",
+        storeRecords: storeCsvRecords,
+      });
+      const created = Number(result.createdCount ?? 0);
+      const updated = Number(result.updatedCount ?? 0);
+      const unchanged = Number(result.unchangedCount ?? 0);
+      const skipped = Number(result.skippedCount ?? 0);
+      const errors = Array.isArray(result.errors) ? result.errors.map(String) : [];
+      setNotice(
+        `Listado procesado: ${created} tiendas nuevas, ${updated} actualizadas, ${unchanged} sin cambios y ${skipped} omitidas.${errors.length ? ` ${errors.slice(0, 3).join(" · ")}` : ""}`,
+      );
+      setStoreCsvRecords([]);
+      setStoreCsvName("");
+      if (storeFileInput.current) storeFileInput.current.value = "";
+      await loadInventory();
+    } catch (importError) {
+      setError(
+        importError instanceof Error
+          ? importError.message
+          : "No se pudo importar el listado de tiendas.",
+      );
     } finally {
       setSaving(false);
     }
@@ -1201,23 +1282,98 @@ export function InventoryApp() {
           ) : null}
 
           {view === "stores" ? (
-            <section className="panel">
+            <>
               {writable ? (
-                <form className="inline-form" onSubmit={saveStore}>
-                  <div className="field"><label htmlFor="store-number">No. de tienda</label><input id="store-number" className="input" value={storeForm.storeNumber} onChange={(event) => setStoreForm({ ...storeForm, storeNumber: event.target.value })} required /></div>
-                  <div className="field"><label htmlFor="store-name">Nombre de tienda</label><input id="store-name" className="input" value={storeForm.name} onChange={(event) => setStoreForm({ ...storeForm, name: event.target.value })} required /></div>
-                  <button className="primary-button" type="submit" disabled={saving}>Guardar tienda</button>
-                </form>
+                <section className="store-tools-grid">
+                  <div className="panel form-card">
+                    <h2>Agregar una tienda</h2>
+                    <p>Registra o corrige una tienda individual usando su número oficial.</p>
+                    <form className="store-manual-form" onSubmit={saveStore}>
+                      <div className="field"><label htmlFor="store-number">No. de tienda</label><input id="store-number" className="input" value={storeForm.storeNumber} onChange={(event) => setStoreForm({ ...storeForm, storeNumber: event.target.value })} required /></div>
+                      <div className="field"><label htmlFor="store-name">Nombre de tienda</label><input id="store-name" className="input" value={storeForm.name} onChange={(event) => setStoreForm({ ...storeForm, name: event.target.value })} required /></div>
+                      <button className="primary-button" type="submit" disabled={saving}>{saving ? "Guardando…" : "Guardar tienda"}</button>
+                    </form>
+                  </div>
+
+                  <div className="panel form-card store-upload-card">
+                    <div className="store-upload-heading">
+                      <div>
+                        <h2>Subir listado de tiendas</h2>
+                        <p>Importa un CSV de Excel con las columnas No. de Tienda y Nombre de tienda.</p>
+                      </div>
+                      <a className="secondary-button template-link" href="/plantilla-tiendas.csv" download>Descargar plantilla</a>
+                    </div>
+                    <div
+                      className={`import-dropzone store-dropzone ${storeCsvDragging ? "dragging" : ""}`}
+                      onDragOver={(event) => { event.preventDefault(); setStoreCsvDragging(true); }}
+                      onDragLeave={() => setStoreCsvDragging(false)}
+                      onDrop={(event) => {
+                        event.preventDefault();
+                        setStoreCsvDragging(false);
+                        void readStoreCsvFile(event.dataTransfer.files?.[0]);
+                      }}
+                    >
+                      <div>
+                        <div className="import-icon">T</div>
+                        <h3>{storeCsvName || "Arrastra el listado aquí"}</h3>
+                        <p className="page-description">{storeCsvRecords.length ? `${storeCsvRecords.length} tiendas detectadas` : "CSV separado por coma o punto y coma"}</p>
+                        <input
+                          ref={storeFileInput}
+                          className="file-input"
+                          type="file"
+                          accept=".csv,text/csv"
+                          onChange={(event) => void readStoreCsvFile(event.target.files?.[0])}
+                        />
+                        <button className="secondary-button" type="button" onClick={() => storeFileInput.current?.click()} style={{ marginTop: 14 }}>Elegir archivo</button>
+                      </div>
+                    </div>
+                  </div>
+                </section>
               ) : null}
-              {data.stores.length ? (
-                <div className="table-wrap">
-                  <table className="data-table" style={{ minWidth: 620 }}>
-                    <thead><tr><th>No. de tienda</th><th>Nombre</th><th>Equipos asignados</th><th>Última actualización</th></tr></thead>
-                    <tbody>{data.stores.map((store) => <tr key={store.id}><td><span className="barcode">{store.storeNumber}</span></td><td><span className="device-name">{store.name}</span></td><td>{data.equipment.filter((item) => item.storeId === store.id).length}</td><td>{formatDate(store.updatedAt)}</td></tr>)}</tbody>
-                  </table>
+
+              {storeCsvRecords.length ? (
+                <section className="panel preview-card store-preview-card">
+                  <div className="panel-header">
+                    <div>
+                      <h2 className="panel-title">Vista previa del listado</h2>
+                      <div className="panel-meta">Primeras {Math.min(storeCsvRecords.length, 8)} de {storeCsvRecords.length} filas</div>
+                    </div>
+                    <button className="primary-button" type="button" onClick={() => void importStores()} disabled={saving || !writable}>{saving ? "Importando…" : "Importar tiendas"}</button>
+                  </div>
+                  <div className="import-summary" aria-label="Resumen del listado de tiendas">
+                    <span><strong>{storeCsvSummary.total}</strong> filas detectadas</span>
+                    <span><strong>{storeCsvSummary.newStores}</strong> tiendas nuevas</span>
+                    <span><strong>{storeCsvSummary.existingStores}</strong> tiendas existentes</span>
+                    <span><strong>{storeCsvSummary.invalid}</strong> filas incompletas</span>
+                  </div>
+                  <div className="table-wrap">
+                    <table className="data-table store-preview-table">
+                      <thead><tr><th>Fila</th><th>No. de tienda</th><th>Nombre de tienda</th><th>Resultado esperado</th></tr></thead>
+                      <tbody>{storeCsvRecords.slice(0, 8).map((record, index) => {
+                        const existing = data.stores.find((store) => store.storeNumber === record.storeNumber.trim());
+                        const complete = Boolean(record.storeNumber.trim() && record.name.trim());
+                        return <tr key={`${record.storeNumber}-${record.sourceRow}-${index}`}><td>{record.sourceRow}</td><td><span className="barcode">{record.storeNumber || "Falta"}</span></td><td><span className="device-name">{record.name || "Falta nombre"}</span></td><td>{!complete ? <span className="badge red">Se omitirá</span> : existing ? <span className="badge blue">Actualizar</span> : <span className="badge green">Crear</span>}</td></tr>;
+                      })}</tbody>
+                    </table>
+                  </div>
+                </section>
+              ) : null}
+
+              <section className="panel stores-catalog-panel">
+                <div className="panel-header">
+                  <div><h2 className="panel-title">Catálogo de tiendas</h2><div className="panel-meta">{data.stores.length} tiendas registradas</div></div>
+                  <button className="ghost-button" type="button" onClick={() => void loadInventory()}>Actualizar</button>
                 </div>
-              ) : <EmptyState title="Aún no hay tiendas" text="Puedes agregarlas manualmente o dejar que el importador las cree desde el CSV." />}
-            </section>
+                {data.stores.length ? (
+                  <div className="table-wrap">
+                    <table className="data-table" style={{ minWidth: 620 }}>
+                      <thead><tr><th>No. de tienda</th><th>Nombre</th><th>Equipos asignados</th><th>Última actualización</th></tr></thead>
+                      <tbody>{data.stores.map((store) => <tr key={store.id}><td><span className="barcode">{store.storeNumber}</span></td><td><span className="device-name">{store.name}</span></td><td>{data.equipment.filter((item) => item.storeId === store.id).length}</td><td>{formatDate(store.updatedAt)}</td></tr>)}</tbody>
+                    </table>
+                  </div>
+                ) : <EmptyState title="Aún no hay tiendas" text="Agrega una tienda manualmente o sube el listado oficial en CSV." />}
+              </section>
+            </>
           ) : null}
 
           {view === "import" ? (

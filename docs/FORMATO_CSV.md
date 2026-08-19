@@ -178,3 +178,28 @@ Para evitar que Excel dañe series largas:
    importarlo.
 
 La vista previa siempre debe revisarse antes de confirmar.
+
+## Listado independiente de tiendas
+
+La pantalla **Tiendas** permite importar el catálogo oficial sin incluir
+equipos. La plantilla se encuentra en
+[`public/plantilla-tiendas.csv`](../public/plantilla-tiendas.csv).
+
+Encabezados recomendados:
+
+```csv
+No. de Tienda;Nombre de tienda
+```
+
+También se reconocen encabezados como `Número de tienda`, `Código de tienda`,
+`Nombre de sala` y `Sala`. Se aceptan archivos separados por coma o punto y
+coma y un título antes de los encabezados.
+
+- El número y el nombre son obligatorios.
+- Se conservan los ceros iniciales del número cuando Excel exporta la celda
+  como texto.
+- Una tienda nueva se crea por número.
+- Una tienda existente conserva su identificador y actualiza solamente el
+  nombre; sus equipos siguen relacionados.
+- Los números repetidos dentro del mismo archivo se omiten y se informan.
+- El límite es de 5,000 filas por importación.

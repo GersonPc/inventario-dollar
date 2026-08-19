@@ -97,6 +97,37 @@ nombre de sala";Tipo de equipo;Modelo;Serie;"Estatus
   assert.equal(records[1].receivedAt, "");
 });
 
+test("maps a store catalog CSV exported from Excel", async () => {
+  const { mapStoresCsv } = await import("../lib/inventory-csv.ts");
+  const csv = `Listado oficial de tiendas;;
+No. de Tienda;Nombre de tienda
+0012;Dollar Centro
+2302;Dollar Zona Norte`;
+
+  const records = mapStoresCsv(csv);
+  assert.deepEqual(records, [
+    { storeNumber: "0012", name: "Dollar Centro", sourceRow: 3 },
+    { storeNumber: "2302", name: "Dollar Zona Norte", sourceRow: 4 },
+  ]);
+});
+
+test("provides a dedicated store list import with preview and safe upserts", async () => {
+  const [appSource, apiSource, storeTemplate] = await Promise.all([
+    readFile(new URL("../app/InventoryApp.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/inventory/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../public/plantilla-tiendas.csv", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(appSource, /Subir listado de tiendas/);
+  assert.match(appSource, /Vista previa del listado/);
+  assert.match(appSource, /Descargar plantilla/);
+  assert.match(appSource, /action: "importStores"/);
+  assert.match(apiSource, /payload\.action === "importStores"/);
+  assert.match(apiSource, /updatedCount/);
+  assert.match(apiSource, /unchangedCount/);
+  assert.match(storeTemplate, /No\. de Tienda;Nombre de tienda/);
+});
+
 test("keeps the equipment dialog ready for continuous barcode capture", async () => {
   const appSource = await readFile(
     new URL("../app/InventoryApp.tsx", import.meta.url),

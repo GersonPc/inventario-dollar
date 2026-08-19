@@ -287,6 +287,7 @@ El cuerpo contiene un campo `action`.
 | --- | --- | --- |
 | `saveEquipment` | Operador | Crea o actualiza un equipo/material y su movimiento. |
 | `saveStore` | Operador | Crea o actualiza una tienda por número. |
+| `importStores` | Operador | Crea o actualiza hasta 5,000 tiendas desde un listado CSV validado. |
 | `importCsv` | Operador | Procesa hasta 5,000 registros preparados por la interfaz. |
 | `revealCredential` | Administrador | Descifra una contraseña guardada. |
 | `inviteUser` | Administrador | Autoriza o reactiva un correo; sin interfaz actual. |
@@ -318,6 +319,11 @@ La importación actual procesa las filas secuencialmente y devuelve:
 - `updatedCount`;
 - `skippedCount`;
 - hasta 20 mensajes de error.
+
+El listado independiente de tiendas se procesa con `mapStoresCsv`. La API
+deduplica números dentro del archivo y conserva el `id` de las tiendas
+existentes al actualizar su nombre, por lo que no rompe las relaciones con
+`equipment.store_id`.
 
 Las reglas completas están en [Formato e importación CSV](FORMATO_CSV.md).
 
