@@ -28,14 +28,15 @@ test("renders the Inventory Dollar application shell", async () => {
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape/i);
 });
 
-test("declares durable storage, protected credentials and temporary public access", async () => {
-  const [hosting, wrangler, schema, cryptoSource, authSource, accessSource, apiSource, csvTemplate] = await Promise.all([
+test("declares durable storage, protected credentials and shared write access", async () => {
+  const [hosting, wrangler, schema, cryptoSource, authSource, writeAccessSource, writeAccessApi, apiSource, csvTemplate] = await Promise.all([
     readFile(new URL("../.openai/hosting.json", import.meta.url), "utf8"),
     readFile(new URL("../wrangler.jsonc", import.meta.url), "utf8"),
     readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
     readFile(new URL("../lib/inventory-crypto.ts", import.meta.url), "utf8"),
     readFile(new URL("../lib/inventory-auth.ts", import.meta.url), "utf8"),
-    readFile(new URL("../app/chatgpt-auth.ts", import.meta.url), "utf8"),
+    readFile(new URL("../lib/write-access.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/write-access/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/inventory/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../public/plantilla-inventario.csv", import.meta.url), "utf8"),
   ]);
@@ -44,9 +45,8 @@ test("declares durable storage, protected credentials and temporary public acces
   assert.match(hosting, /"r2":\s*"DEVICE_IMAGES"/);
   assert.match(wrangler, /"binding":\s*"DB"/);
   assert.match(wrangler, /"binding":\s*"DEVICE_IMAGES"/);
-  assert.match(wrangler, /"CF_ACCESS_AUD":\s*"[a-f0-9]{64}"/);
-  assert.match(wrangler, /"CF_ACCESS_TEAM_DOMAIN":\s*"https:\/\/[a-z0-9-]+\.cloudflareaccess\.com"/);
-  assert.match(wrangler, /"INVENTORY_PUBLIC_ACCESS":\s*"true"/);
+  assert.match(wrangler, /"INVENTORY_WRITE_ACCESS_MINUTES":\s*"30"/);
+  assert.doesNotMatch(wrangler, /CF_ACCESS|INVENTORY_PUBLIC_ACCESS/);
   assert.match(schema, /idx_equipment_barcode_unique/);
   assert.match(schema, /itemKind/);
   assert.match(schema, /quantity/);
@@ -56,16 +56,16 @@ test("declares durable storage, protected credentials and temporary public acces
   assert.match(schema, /deviceModelProfiles/);
   assert.match(schema, /idx_device_model_profiles_catalog_key_unique/);
   assert.match(cryptoSource, /AES-GCM/);
-  assert.match(authSource, /INVENTORY_ADMIN_EMAIL/);
-  assert.match(authSource, /INVENTORY_PUBLIC_ACCESS/);
+  assert.match(authSource, /Consulta pública/);
   assert.match(authSource, /role: "operator"/);
-  assert.match(authSource, /if \(email !== getBootstrapAdminEmail\(\)\) return null/);
-  assert.match(accessSource, /cf-access-jwt-assertion/);
-  assert.match(accessSource, /createRemoteJWKSet/);
-  assert.match(accessSource, /issuer: teamDomain/);
-  assert.match(accessSource, /audience/);
-  assert.match(apiSource, /payload\.action === "inviteUser"/);
-  assert.match(apiSource, /payload\.action === "toggleUser"/);
+  assert.doesNotMatch(authSource, /getChatGPTUser|Cloudflare Access/);
+  assert.match(writeAccessSource, /INVENTORY_WRITE_PASSWORD/);
+  assert.match(writeAccessSource, /timingSafeEqual/);
+  assert.match(writeAccessSource, /HMAC/);
+  assert.match(writeAccessSource, /expiresAt > Date\.now\(\)/);
+  assert.match(writeAccessApi, /passwordMatches/);
+  assert.match(writeAccessApi, /cache-control/);
+  assert.match(apiSource, /getWriteAccessFailure\(request\)/);
   assert.match(apiSource, /payload\.action === "deleteEquipment"/);
   assert.match(apiSource, /db\.delete\(equipment\)/);
   assert.match(csvTemplate, /No\. de Serie/);
@@ -171,6 +171,20 @@ test("removes user administration from the application interface", async () => {
   assert.doesNotMatch(appSource, /Autorizar usuario/);
 });
 
+test("keeps write permission only in memory and asks for the shared password", async () => {
+  const appSource = await readFile(
+    new URL("../app/InventoryApp.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(appSource, /Habilitar edición/);
+  assert.match(appSource, /Ingresa la clave de edición/);
+  assert.match(appSource, /writeToken = useRef/);
+  assert.match(appSource, /authorization: `Bearer \$\{accessToken\}`/);
+  assert.match(appSource, /30 minutos o hasta recargar/);
+  assert.doesNotMatch(appSource, /localStorage|sessionStorage/);
+});
+
 test("allows a writable user to delete an existing item from its edit dialog", async () => {
   const appSource = await readFile(
     new URL("../app/InventoryApp.tsx", import.meta.url),
@@ -206,19 +220,20 @@ test("provides editable device model profiles with R2 image uploads", async () =
   assert.match(appSource, /Subir imagen/);
   assert.match(appSource, /Información técnica/);
   assert.match(profileApi, /env\.DEVICE_IMAGES\.put/);
-  assert.match(profileApi, /isPublicAccessEnabled\(\) \? null : currentUser\.id/);
+  assert.match(profileApi, /getWriteAccessFailure\(request\)/);
+  assert.match(profileApi, /const updatedBy = null/);
   assert.match(profileApi, /maximumImageBytes = 5 \* 1024 \* 1024/);
   assert.match(imageApi, /env\.DEVICE_IMAGES\.get/);
   assert.match(imageApi, /x-content-type-options/);
 });
 
-test("does not write the temporary public identity into user foreign keys", async () => {
+test("does not write the shared public identity into user foreign keys", async () => {
   const apiSource = await readFile(
     new URL("../app/api/inventory/route.ts", import.meta.url),
     "utf8",
   );
 
-  assert.match(apiSource, /const actorId = isPublicAccessEnabled\(\) \? null : currentUser\.id/);
+  assert.match(apiSource, /const actorId = null/);
   assert.match(apiSource, /createdBy: actorId/);
   assert.match(apiSource, /updatedBy: actorId/);
   assert.match(apiSource, /actorId,/);

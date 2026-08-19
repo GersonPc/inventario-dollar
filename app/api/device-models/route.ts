@@ -6,8 +6,8 @@ import { deviceModelCatalogKey } from "@/lib/device-models";
 import {
   canWrite,
   getInventoryUser,
-  isPublicAccessEnabled,
 } from "@/lib/inventory-auth";
+import { getWriteAccessFailure } from "@/lib/write-access";
 
 const allowedImageTypes = new Map([
   ["image/jpeg", "jpg"],
@@ -52,6 +52,8 @@ export async function POST(request: Request) {
     if (!currentUser || !currentUser.active) {
       return jsonError("Tu sesión no está activa o tu correo no está autorizado.", 401);
     }
+    const writeAccessFailure = await getWriteAccessFailure(request);
+    if (writeAccessFailure) return writeAccessFailure;
     if (!canWrite(currentUser.role)) {
       return jsonError("Tu rol permite consultar, pero no editar fichas.", 403);
     }
@@ -80,7 +82,7 @@ export async function POST(request: Request) {
 
     const catalogKey = deviceModelCatalogKey(deviceType, model);
     const db = getDb();
-    const updatedBy = isPublicAccessEnabled() ? null : currentUser.id;
+    const updatedBy = null;
     const [existing] = await db
       .select()
       .from(deviceModelProfiles)

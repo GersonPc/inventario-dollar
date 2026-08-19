@@ -1,19 +1,10 @@
 import { env } from "cloudflare:workers";
-import { getInventoryUser } from "@/lib/inventory-auth";
 
 function isDeviceImageKey(value: string): boolean {
   return /^device-models\/[a-f0-9-]{36}\.(?:jpg|png|webp)$/.test(value);
 }
 
 export async function GET(request: Request) {
-  const currentUser = await getInventoryUser();
-  if (!currentUser || !currentUser.active) {
-    return Response.json(
-      { error: "Tu sesión no está activa o tu correo no está autorizado." },
-      { status: 401 },
-    );
-  }
-
   const key = new URL(request.url).searchParams.get("key")?.trim() ?? "";
   if (!isDeviceImageKey(key)) {
     return Response.json({ error: "Imagen inválida." }, { status: 400 });

@@ -5,17 +5,25 @@
 Abre
 [Inventario Dollar](https://inventario-dollar.fybertechdisney.workers.dev).
 
-Durante las pruebas de integración con Entra ID, el inventario está abierto:
-quien tenga el enlace puede entrar sin correo, PIN ni cuenta de Cloudflare.
+El inventario se puede consultar sin correo, PIN ni cuenta de Cloudflare.
 
 No compartas el enlace fuera del equipo. Cualquier persona que lo tenga puede
-consultar, registrar, editar e importar datos de inventario.
+consultar los datos, pero necesita la clave compartida para modificarlos.
 
-## 2. Acceso temporal
+## 2. Clave de edición
 
-El sistema opera temporalmente como **operador público**. Permite todas las
-acciones de inventario. La pantalla de usuarios sigue retirada; los roles
-volverán a depender de Entra ID al activar la autenticación de Microsoft.
+La página inicia en modo **Solo lectura**. Puedes abrir formularios y preparar
+datos, pero al guardar, importar o eliminar se solicita la clave de edición.
+
+Después de validarla:
+
+- la edición permanece habilitada durante 30 minutos;
+- recargar o cerrar la página elimina el permiso inmediatamente;
+- el botón **Edición activa · Bloquear** permite terminarlo manualmente;
+- la clave no se guarda en el navegador.
+
+También puedes seleccionar **Habilitar edición** antes de empezar una captura
+grande para ingresar la clave por adelantado.
 
 ## 3. Pantalla Inventario
 
@@ -205,8 +213,8 @@ aparecerán. La selección se conserva aunque MAC, IP y contraseña todavía est
 vacíos. Los registros anteriores que ya contienen alguno de esos datos quedan
 marcados automáticamente como dispositivos de red.
 
-La contraseña se cifra antes de guardarse. Solamente un administrador puede
-solicitar que se muestre. Si se edita un equipo y el campo de nueva contraseña
+La contraseña se cifra antes de guardarse. En el modo de clave compartida no se
+muestra ni se exporta. Si se edita un equipo y el campo de nueva contraseña
 queda vacío, se conserva la contraseña existente.
 
 ## 12. Importar un CSV
@@ -240,9 +248,15 @@ La nota del registro conserva el valor científico original como referencia.
 
 ### No puedo entrar
 
-Mientras el modo público esté activo no se solicita correo. Si aparece una
-pantalla de acceso, informa al administrador: es posible que Cloudflare Access
-se haya activado de nuevo.
+La consulta no solicita correo. Si la página no carga, revisa la conexión e
+informa al responsable del sistema.
+
+### La clave no permite guardar
+
+- Comprueba mayúsculas y minúsculas.
+- Si recargaste la página, vuelve a seleccionar **Habilitar edición**.
+- Si aparece que la clave no está configurada, el responsable debe crear el
+  secreto `INVENTORY_WRITE_PASSWORD` en Cloudflare.
 
 ### El lector no abre un registro
 

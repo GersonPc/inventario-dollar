@@ -155,12 +155,6 @@ function emptyEquipment(barcode = ""): EquipmentForm {
   };
 }
 
-const roleLabels: Record<Role, string> = {
-  admin: "Administrador",
-  operator: "Operador",
-  viewer: "Consulta",
-};
-
 const conditionLabels: Record<Condition, string> = {
   working: "Funciona",
   not_working: "No funciona",
@@ -216,14 +210,35 @@ function htmlText(value: unknown): string {
   });
 }
 
-async function postAction(body: Record<string, unknown>) {
+class ApiError extends Error {
+  code: string;
+  status: number;
+
+  constructor(message: string, code: string, status: number) {
+    super(message);
+    this.name = "ApiError";
+    this.code = code;
+    this.status = status;
+  }
+}
+
+async function postAction(body: Record<string, unknown>, writeToken = "") {
   const response = await fetch("/api/inventory", {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: {
+      "content-type": "application/json",
+      ...(writeToken ? { authorization: `Bearer ${writeToken}` } : {}),
+    },
     body: JSON.stringify(body),
   });
   const payload = (await response.json()) as Record<string, unknown>;
-  if (!response.ok) throw new Error(String(payload.error ?? "La operación falló."));
+  if (!response.ok) {
+    throw new ApiError(
+      String(payload.error ?? "La operación falló."),
+      String(payload.code ?? ""),
+      response.status,
+    );
+  }
   return payload;
 }
 
@@ -233,6 +248,12 @@ export function InventoryApp() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [writeUnlocked, setWriteUnlocked] = useState(false);
+  const [writeAccessExpiresAt, setWriteAccessExpiresAt] = useState(0);
+  const [writeAccessDialogOpen, setWriteAccessDialogOpen] = useState(false);
+  const [writePassword, setWritePassword] = useState("");
+  const [writeAccessError, setWriteAccessError] = useState("");
+  const [checkingWriteAccess, setCheckingWriteAccess] = useState(false);
   const [query, setQuery] = useState("");
   const [kindFilter, setKindFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
@@ -262,6 +283,10 @@ export function InventoryApp() {
   const cameraVideo = useRef<HTMLVideoElement>(null);
   const cameraScannerControls = useRef<CameraScannerControls | null>(null);
   const deviceImageObjectUrl = useRef("");
+  const writeToken = useRef("");
+  const writeTokenExpiresAt = useRef(0);
+  const writeAccessResolver = useRef<((token: string | null) => void) | null>(null);
+  const writePasswordInput = useRef<HTMLInputElement>(null);
 
   const loadInventory = useCallback(async () => {
     setError("");
@@ -282,7 +307,29 @@ export function InventoryApp() {
     return () => window.clearTimeout(task);
   }, [loadInventory]);
 
-  const writable = data?.currentUser.role === "admin" || data?.currentUser.role === "operator";
+  useEffect(() => {
+    if (!writeAccessExpiresAt) return;
+    const remaining = Math.max(0, writeAccessExpiresAt - Date.now());
+    const timer = window.setTimeout(() => {
+      writeToken.current = "";
+      writeTokenExpiresAt.current = 0;
+      setWriteUnlocked(false);
+      setWriteAccessExpiresAt(0);
+      setNotice("El permiso de edición terminó. La clave se solicitará al guardar de nuevo.");
+    }, remaining);
+    return () => window.clearTimeout(timer);
+  }, [writeAccessExpiresAt]);
+
+  useEffect(() => {
+    if (!writeAccessDialogOpen) return;
+    const frame = window.requestAnimationFrame(() => {
+      writePasswordInput.current?.focus();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [writeAccessDialogOpen]);
+
+  // Everyone can prepare forms; the server requires a temporary token to save.
+  const writable = Boolean(data);
   const deviceTypes = useMemo(
     () =>
       Array.from(new Set((data?.equipment ?? []).map((item) => item.deviceType))).sort(
@@ -411,6 +458,94 @@ export function InventoryApp() {
       invalid: storeCsvRecords.length - validRecords.length,
     };
   }, [data?.stores, storeCsvRecords]);
+
+  const clearWriteAccess = useCallback((showNotice = false) => {
+    writeToken.current = "";
+    writeTokenExpiresAt.current = 0;
+    setWriteUnlocked(false);
+    setWriteAccessExpiresAt(0);
+    if (showNotice) {
+      setNotice("La edición quedó bloqueada. La clave se solicitará al guardar.");
+    }
+  }, []);
+
+  const requestWriteAccess = useCallback((): Promise<string | null> => {
+    if (writeToken.current && writeTokenExpiresAt.current > Date.now()) {
+      return Promise.resolve(writeToken.current);
+    }
+    writeToken.current = "";
+    writeTokenExpiresAt.current = 0;
+    setWriteUnlocked(false);
+    setWriteAccessExpiresAt(0);
+    setWritePassword("");
+    setWriteAccessError("");
+    setWriteAccessDialogOpen(true);
+    return new Promise((resolve) => {
+      writeAccessResolver.current = resolve;
+    });
+  }, []);
+
+  const cancelWriteAccess = () => {
+    writeAccessResolver.current?.(null);
+    writeAccessResolver.current = null;
+    setWriteAccessDialogOpen(false);
+    setWritePassword("");
+    setWriteAccessError("");
+  };
+
+  const submitWritePassword = async (event: FormEvent) => {
+    event.preventDefault();
+    setCheckingWriteAccess(true);
+    setWriteAccessError("");
+    try {
+      const response = await fetch("/api/write-access", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ password: writePassword }),
+      });
+      const payload = (await response.json()) as {
+        token?: string;
+        expiresAt?: number;
+        expiresInMinutes?: number;
+        error?: string;
+      };
+      if (!response.ok || !payload.token || !payload.expiresAt) {
+        throw new Error(payload.error ?? "No se pudo habilitar la edición.");
+      }
+
+      writeToken.current = payload.token;
+      writeTokenExpiresAt.current = payload.expiresAt;
+      setWriteUnlocked(true);
+      setWriteAccessExpiresAt(payload.expiresAt);
+      setWriteAccessDialogOpen(false);
+      setWritePassword("");
+      setNotice(
+        `Edición habilitada por ${payload.expiresInMinutes ?? 30} minutos o hasta recargar la página.`,
+      );
+      writeAccessResolver.current?.(payload.token);
+      writeAccessResolver.current = null;
+    } catch (accessError) {
+      setWriteAccessError(
+        accessError instanceof Error
+          ? accessError.message
+          : "No se pudo habilitar la edición.",
+      );
+    } finally {
+      setCheckingWriteAccess(false);
+    }
+  };
+
+  const writeErrorMessage = (writeError: unknown, fallback: string): string => {
+    if (
+      writeError instanceof ApiError &&
+      ["WRITE_ACCESS_REQUIRED", "WRITE_ACCESS_NOT_CONFIGURED"].includes(
+        writeError.code,
+      )
+    ) {
+      clearWriteAccess();
+    }
+    return writeError instanceof Error ? writeError.message : fallback;
+  };
 
   const openEquipment = useCallback((item?: Equipment, barcode = "") => {
     setError("");
@@ -593,6 +728,8 @@ export function InventoryApp() {
   const submitEquipment = async (event: FormEvent) => {
     event.preventDefault();
     if (!editing) return;
+    const accessToken = await requestWriteAccess();
+    if (!accessToken) return;
     const isNewEquipment = !editing.id;
     setSaving(true);
     setError("");
@@ -603,7 +740,7 @@ export function InventoryApp() {
           ...editing,
           storeId: editing.storeId ? Number(editing.storeId) : null,
         },
-      });
+      }, accessToken);
       setNotice(
         isNewEquipment
           ? "Artículo registrado. Escanea el siguiente No. de Serie para continuar con los mismos datos."
@@ -617,7 +754,7 @@ export function InventoryApp() {
         });
       }
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "No se pudo guardar.");
+      setError(writeErrorMessage(saveError, "No se pudo guardar."));
     } finally {
       setSaving(false);
     }
@@ -625,15 +762,17 @@ export function InventoryApp() {
 
   const revealCredential = async () => {
     if (!editing?.id) return;
+    const accessToken = await requestWriteAccess();
+    if (!accessToken) return;
     setSaving(true);
     try {
       const result = await postAction({
         action: "revealCredential",
         equipmentId: editing.id,
-      });
+      }, accessToken);
       setRevealedPassword(String(result.password ?? "Sin contraseña guardada"));
     } catch (revealError) {
-      setError(revealError instanceof Error ? revealError.message : "No se pudo mostrar.");
+      setError(writeErrorMessage(revealError, "No se pudo mostrar."));
     } finally {
       setSaving(false);
     }
@@ -647,15 +786,23 @@ export function InventoryApp() {
     );
     if (!confirmed) return;
 
+    const accessToken = await requestWriteAccess();
+    if (!accessToken) return;
+
     setSaving(true);
     setError("");
     try {
-      await postAction({ action: "deleteEquipment", equipmentId: editing.id });
+      await postAction(
+        { action: "deleteEquipment", equipmentId: editing.id },
+        accessToken,
+      );
       setEditing(null);
       setNotice("Artículo eliminado correctamente.");
       await loadInventory();
     } catch (deleteError) {
-      setError(deleteError instanceof Error ? deleteError.message : "No se pudo eliminar el artículo.");
+      setError(
+        writeErrorMessage(deleteError, "No se pudo eliminar el artículo."),
+      );
     } finally {
       setSaving(false);
     }
@@ -688,6 +835,8 @@ export function InventoryApp() {
   const submitDeviceProfile = async (event: FormEvent) => {
     event.preventDefault();
     if (!editingDevice) return;
+    const accessToken = await requestWriteAccess();
+    if (!accessToken) return;
 
     setSaving(true);
     setError("");
@@ -703,11 +852,16 @@ export function InventoryApp() {
 
       const response = await fetch("/api/device-models", {
         method: "POST",
+        headers: { authorization: `Bearer ${accessToken}` },
         body: formData,
       });
-      const payload = (await response.json()) as { error?: string };
+      const payload = (await response.json()) as { error?: string; code?: string };
       if (!response.ok) {
-        throw new Error(payload.error ?? "No se pudo guardar la ficha del dispositivo.");
+        throw new ApiError(
+          payload.error ?? "No se pudo guardar la ficha del dispositivo.",
+          payload.code ?? "",
+          response.status,
+        );
       }
 
       closeDeviceProfile();
@@ -715,9 +869,10 @@ export function InventoryApp() {
       await loadInventory();
     } catch (saveError) {
       setError(
-        saveError instanceof Error
-          ? saveError.message
-          : "No se pudo guardar la ficha del dispositivo.",
+        writeErrorMessage(
+          saveError,
+          "No se pudo guardar la ficha del dispositivo.",
+        ),
       );
     } finally {
       setSaving(false);
@@ -726,15 +881,17 @@ export function InventoryApp() {
 
   const saveStore = async (event: FormEvent) => {
     event.preventDefault();
+    const accessToken = await requestWriteAccess();
+    if (!accessToken) return;
     setSaving(true);
     setError("");
     try {
-      await postAction({ action: "saveStore", store: storeForm });
+      await postAction({ action: "saveStore", store: storeForm }, accessToken);
       setStoreForm({ storeNumber: "", name: "" });
       setNotice("Tienda guardada correctamente.");
       await loadInventory();
     } catch (storeError) {
-      setError(storeError instanceof Error ? storeError.message : "No se pudo guardar la tienda.");
+      setError(writeErrorMessage(storeError, "No se pudo guardar la tienda."));
     } finally {
       setSaving(false);
     }
@@ -765,13 +922,15 @@ export function InventoryApp() {
   };
 
   const importStores = async () => {
+    const accessToken = await requestWriteAccess();
+    if (!accessToken) return;
     setSaving(true);
     setError("");
     try {
       const result = await postAction({
         action: "importStores",
         storeRecords: storeCsvRecords,
-      });
+      }, accessToken);
       const created = Number(result.createdCount ?? 0);
       const updated = Number(result.updatedCount ?? 0);
       const unchanged = Number(result.unchangedCount ?? 0);
@@ -786,9 +945,10 @@ export function InventoryApp() {
       await loadInventory();
     } catch (importError) {
       setError(
-        importError instanceof Error
-          ? importError.message
-          : "No se pudo importar el listado de tiendas.",
+        writeErrorMessage(
+          importError,
+          "No se pudo importar el listado de tiendas.",
+        ),
       );
     } finally {
       setSaving(false);
@@ -822,10 +982,15 @@ export function InventoryApp() {
   };
 
   const importCsv = async () => {
+    const accessToken = await requestWriteAccess();
+    if (!accessToken) return;
     setSaving(true);
     setError("");
     try {
-      const result = await postAction({ action: "importCsv", records: csvRecords });
+      const result = await postAction(
+        { action: "importCsv", records: csvRecords },
+        accessToken,
+      );
       const created = Number(result.createdCount ?? 0);
       const updated = Number(result.updatedCount ?? 0);
       const skipped = Number(result.skippedCount ?? 0);
@@ -837,7 +1002,7 @@ export function InventoryApp() {
       setCsvName("");
       await loadInventory();
     } catch (importError) {
-      setError(importError instanceof Error ? importError.message : "No se pudo importar el archivo.");
+      setError(writeErrorMessage(importError, "No se pudo importar el archivo."));
     } finally {
       setSaving(false);
     }
@@ -1020,8 +1185,8 @@ export function InventoryApp() {
           ))}
         </nav>
         <div className="sidebar-user">
-          <div className="sidebar-user-name">{data.currentUser.displayName}</div>
-          <div className="sidebar-user-role">{roleLabels[data.currentUser.role]}</div>
+          <div className="sidebar-user-name">{writeUnlocked ? "Edición habilitada" : "Consulta pública"}</div>
+          <div className="sidebar-user-role">{writeUnlocked ? "Permiso temporal" : "Solo lectura"}</div>
         </div>
       </aside>
 
@@ -1033,11 +1198,22 @@ export function InventoryApp() {
               <h1 className="page-title">{pageCopy[view].title}</h1>
               <p className="page-description">{pageCopy[view].description}</p>
             </div>
-            {view === "inventory" && writable ? (
-              <button className="primary-button" type="button" onClick={() => openEquipment()}>
-                + Registrar artículo
-              </button>
-            ) : null}
+            <div className="page-header-actions">
+              {writeUnlocked ? (
+                <button className="secondary-button write-access-button unlocked" type="button" onClick={() => clearWriteAccess(true)}>
+                  Edición activa · Bloquear
+                </button>
+              ) : (
+                <button className="secondary-button write-access-button" type="button" onClick={() => void requestWriteAccess()}>
+                  Habilitar edición
+                </button>
+              )}
+              {view === "inventory" && writable ? (
+                <button className="primary-button" type="button" onClick={() => openEquipment()}>
+                  + Registrar artículo
+                </button>
+              ) : null}
+            </div>
           </header>
 
           {error ? <div className="error-banner" role="alert">{error}</div> : null}
@@ -1558,6 +1734,55 @@ export function InventoryApp() {
             <div className="modal-actions">
               <button className="secondary-button" type="button" onClick={closeDeviceProfile} disabled={saving}>Cerrar</button>
               {writable ? <button className="primary-button" type="submit" disabled={saving}>{saving ? "Guardando…" : "Guardar ficha"}</button> : null}
+            </div>
+          </form>
+        </div>
+      ) : null}
+
+      {writeAccessDialogOpen ? (
+        <div
+          className="modal-backdrop write-access-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !checkingWriteAccess) {
+              cancelWriteAccess();
+            }
+          }}
+        >
+          <form
+            className="modal write-access-modal"
+            onSubmit={submitWritePassword}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="write-access-title"
+          >
+            <div className="modal-header">
+              <div>
+                <p className="eyebrow">Protección de cambios</p>
+                <h2 id="write-access-title">Ingresa la clave de edición</h2>
+              </div>
+              <button className="close-button" type="button" onClick={cancelWriteAccess} aria-label="Cancelar" disabled={checkingWriteAccess}>×</button>
+            </div>
+            <div className="modal-body">
+              <p className="write-access-copy">La consulta es pública. La clave habilita guardar, importar y eliminar durante 30 minutos o hasta recargar esta página.</p>
+              <div className="field">
+                <label htmlFor="write-access-password">Clave de edición</label>
+                <input
+                  ref={writePasswordInput}
+                  id="write-access-password"
+                  className="input"
+                  type="password"
+                  value={writePassword}
+                  onChange={(event) => setWritePassword(event.target.value)}
+                  autoComplete="current-password"
+                  required
+                />
+              </div>
+              {writeAccessError ? <div className="error-banner write-access-error" role="alert">{writeAccessError}</div> : null}
+            </div>
+            <div className="modal-actions">
+              <button className="secondary-button" type="button" onClick={cancelWriteAccess} disabled={checkingWriteAccess}>Cancelar</button>
+              <button className="primary-button" type="submit" disabled={checkingWriteAccess || !writePassword}>{checkingWriteAccess ? "Verificando…" : "Habilitar edición"}</button>
             </div>
           </form>
         </div>

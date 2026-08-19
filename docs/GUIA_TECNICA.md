@@ -7,17 +7,18 @@ flowchart LR
     U["Usuario con el enlace"] --> W["Cloudflare Worker / Vinext"]
     W --> S["Recursos estáticos"]
     W --> API["API /api/inventory"]
+    U --> K["Clave de edición"]
+    K --> T["Token HMAC temporal"]
+    T --> API
     API --> D1["Cloudflare D1"]
     API --> R2["Cloudflare R2 · imágenes de modelos"]
     API --> C["Cifrado AES-GCM"]
 ```
 
-Mientras se integra Entra ID, el Worker opera con
-`INVENTORY_PUBLIC_ACCESS=true`. El servidor asigna una identidad temporal de
-rol `operator` a las solicitudes sin sesión: permite las operaciones de bodega
-pero no el revelado de contraseñas ni la administración de usuarios. Cualquier
-persona con la URL puede modificar el inventario durante este periodo, pero las
-contraseñas permanecen cifradas y no se incluyen en el CSV.
+Las lecturas son públicas. Para modificar datos, `POST /api/write-access`
+compara la clave recibida con el secreto del Worker y entrega un token HMAC con
+vencimiento. La interfaz conserva el token únicamente en memoria y lo envía en
+cada escritura. Recargar la página lo elimina, aunque todavía no haya vencido.
 
 La interfaz y la API forman una sola aplicación Vinext. Los archivos estáticos
 se sirven mediante el binding `ASSETS`, los datos estructurados mediante el
@@ -30,11 +31,12 @@ binding D1 `DB` y las imágenes subidas mediante el binding R2 `DEVICE_IMAGES`.
 | `app/InventoryApp.tsx` | Interfaz, lector USB/cámara, exportación, formularios, filtros y vista previa CSV. |
 | `app/api/inventory/route.ts` | Consultas, validaciones, permisos y operaciones de inventario. |
 | `app/api/device-models/route.ts` | Edición de fichas técnicas y carga o reemplazo de imágenes. |
-| `app/api/device-model-images/route.ts` | Lectura autenticada y transmisión de imágenes desde R2. |
+| `app/api/device-model-images/route.ts` | Lectura pública y transmisión de imágenes desde R2. |
+| `app/api/write-access/route.ts` | Validación de la clave compartida y emisión del permiso temporal. |
 | `lib/device-models.ts` | Clave normalizada que relaciona tipo y modelo con su ficha. |
 | `lib/inventory-csv.ts` | Lectura, normalización y transformación de archivos CSV. |
-| `lib/inventory-auth.ts` | Acceso público temporal, usuario interno, roles y autorización de escritura. |
-| `app/chatgpt-auth.ts` | Validación del JWT de Cloudflare Access para la siguiente fase con Entra ID. |
+| `lib/inventory-auth.ts` | Identidad anónima de lectura usada por compatibilidad interna. |
+| `lib/write-access.ts` | Comparación segura, firma HMAC, vencimiento y validación de escritura. |
 | `lib/inventory-crypto.ts` | Cifrado y descifrado AES-GCM de credenciales. |
 | `db/schema.ts` | Esquema Drizzle para D1/SQLite. |
 | `drizzle/` | Migraciones SQL y metadatos de Drizzle Kit. |
@@ -51,7 +53,8 @@ navegador; no transmite imágenes a la API ni las guarda en D1.
 
 ### `users`
 
-Identidades internas y roles.
+Tabla heredada de identidades internas y roles. No participa en el modo actual
+de clave compartida y se conserva para no alterar movimientos históricos.
 
 Campos principales: `email`, `display_name`, `role`, `active`.
 
@@ -114,45 +117,40 @@ Las fichas se muestran junto con conteos calculados desde `equipment`. Se
 aceptan imágenes JPG, PNG y WebP de hasta 5 MB. Al reemplazar o quitar una
 imagen, el objeto anterior se elimina de R2.
 
-## 4. Autenticación y autorización
+## 4. Acceso de lectura y escritura
 
-### Modo público temporal
+No se usa Cloudflare Access, correo ni cuenta de usuario.
 
-`INVENTORY_PUBLIC_ACCESS=true` evita consultar identidad y devuelve el usuario
-efímero `public-access` con rol `operator`. La API oculta la lista de usuarios y
-rechaza las acciones internas de gestión de usuarios en este modo.
+### Lectura pública
 
-### Cloudflare Access (preparado para reactivarse)
+`GET /api/inventory` y las imágenes de modelos pueden consultarse sin token.
+La respuesta no contiene contraseñas de equipos y la exportación CSV también
+las excluye.
 
-El Worker recibe el encabezado `cf-access-jwt-assertion`. La aplicación:
+### Clave compartida
 
-1. obtiene las claves públicas desde el dominio del equipo de Access;
-2. verifica firma, emisor y audiencia;
-3. extrae correo y sujeto;
-4. construye el identificador interno `cloudflare:<sub>`.
+`INVENTORY_WRITE_PASSWORD` se configura como secreto del Worker. Debe tener al
+menos 12 caracteres. La API calcula SHA-256 para comparar la clave mediante
+`crypto.subtle.timingSafeEqual`; el valor real no se devuelve ni se escribe en
+logs o en D1.
 
-La aplicación no acepta el correo enviado por el navegador como prueba de
-identidad; utiliza el token firmado por Access.
+Cuando coincide, el servidor emite un token firmado con HMAC-SHA-256 que
+incluye vencimiento y un nonce aleatorio. Su duración predeterminada es 30
+minutos y puede ajustarse con `INVENTORY_WRITE_ACCESS_MINUTES`.
 
-### Autorización interna
+### Validación de cada cambio
 
-Cuando se desactive el modo público, después de validar la identidad:
+Las rutas de inventario y fichas de modelos exigen:
 
-1. busca el identificador en `users`;
-2. si no existe, busca por correo para enlazar una autorización previa;
-3. si sigue sin existir, permite crear únicamente el correo definido en
-   `INVENTORY_ADMIN_EMAIL`;
-4. cualquier otro correo recibe `401` aunque Access lo haya autenticado.
+```text
+Authorization: Bearer <token-temporal>
+```
 
-La administración visual de usuarios está retirada durante la migración a
-Microsoft, pero la API conserva las acciones internas de roles y usuarios para
-compatibilidad temporal.
-
-### Permisos del servidor
-
-- `admin`: lectura, escritura y revelado de contraseñas.
-- `operator`: lectura y escritura.
-- `viewer`: solamente lectura.
+Ocultar botones no es la medida de seguridad: el servidor valida firma y
+vencimiento antes de procesar cada `POST`. El token vive en una referencia de
+React, no en `localStorage`, `sessionStorage` ni cookies. Por eso recargar la
+página vuelve al modo de consulta. También se puede invalidar localmente con el
+botón **Edición activa · Bloquear**.
 
 ## 5. Cifrado de contraseñas
 
@@ -180,10 +178,8 @@ npx wrangler secret put INVENTORY_ENCRYPTION_KEY --config wrangler.jsonc
 | `DB` | D1 binding | Base `inventario-dollar-db`. |
 | `ASSETS` | Assets binding | Archivos compilados de la interfaz. |
 | `DEVICE_IMAGES` | R2 binding | Imágenes de las fichas de modelos. |
-| `CF_ACCESS_TEAM_DOMAIN` | Variable | Dominio `https://<equipo>.cloudflareaccess.com`. |
-| `CF_ACCESS_AUD` | Variable | Audience tag de la aplicación Access. |
-| `INVENTORY_ADMIN_EMAIL` | Variable | Correo administrador inicial. |
-| `INVENTORY_PUBLIC_ACCESS` | Variable | `true` solo durante la prueba pública previa a Entra ID. |
+| `INVENTORY_WRITE_ACCESS_MINUTES` | Variable | Duración del permiso temporal; actualmente `30`. |
+| `INVENTORY_WRITE_PASSWORD` | Secreto | Clave compartida para autorizar escrituras. |
 | `INVENTORY_ENCRYPTION_KEY` | Secreto | Clave para cifrar credenciales. |
 
 `.env.example` documenta nombres y valores de ejemplo. Para desarrollo local se
@@ -210,11 +206,9 @@ Edita `.dev.vars` únicamente en tu equipo. Después:
 npm run dev
 ```
 
-El modo público está habilitado intencionalmente en producción durante la
-prueba. No lo mantengas cuando haya contraseñas u otros datos sensibles que no
-deban ser accesibles para cualquier persona con la URL. Para reactivar el
-control, cambia la variable a `false`, vuelve a crear la aplicación de Access y
-configúrala con Entra ID.
+La consulta pública no debe devolver contraseñas ni otros secretos. En local,
+la edición permanece bloqueada hasta definir `INVENTORY_WRITE_PASSWORD` en
+`.dev.vars`.
 
 ## 8. Cambios de base de datos
 
@@ -272,39 +266,41 @@ las opciones de recuperación de D1 o restaura primero en una base separada.
 
 Devuelve:
 
-- usuario actual;
+- identidad pública de compatibilidad;
 - hasta 5,000 artículos;
 - catálogo de tiendas;
 - fichas técnicas de tipos y modelos;
-- lista de usuarios para administradores, conservada por compatibilidad aunque
-  la interfaz ya no muestra su administración.
+- lista de usuarios vacía.
+
+### `POST /api/write-access`
+
+Recibe la clave compartida y, si es correcta, devuelve un token HMAC temporal,
+su vencimiento y la duración configurada. Rechaza orígenes diferentes, cuerpos
+excesivos y claves incorrectas. La respuesta utiliza `cache-control: no-store`.
 
 ### `POST /api/inventory`
 
 El cuerpo contiene un campo `action`.
 
-| Acción | Rol mínimo | Función |
+| Acción | Protección | Función |
 | --- | --- | --- |
-| `saveEquipment` | Operador | Crea o actualiza un equipo/material y su movimiento. |
-| `saveStore` | Operador | Crea o actualiza una tienda por número. |
-| `importStores` | Operador | Crea o actualiza hasta 5,000 tiendas desde un listado CSV validado. |
-| `importCsv` | Operador | Procesa hasta 5,000 registros preparados por la interfaz. |
-| `revealCredential` | Administrador | Descifra una contraseña guardada. |
-| `inviteUser` | Administrador | Autoriza o reactiva un correo; sin interfaz actual. |
-| `updateRole` | Administrador | Cambia rol; sin interfaz actual. |
-| `toggleUser` | Administrador | Activa o suspende; sin interfaz actual. |
+| `saveEquipment` | Token temporal | Crea o actualiza un equipo/material y su movimiento. |
+| `saveStore` | Token temporal | Crea o actualiza una tienda por número. |
+| `importStores` | Token temporal | Crea o actualiza hasta 5,000 tiendas desde un listado CSV validado. |
+| `importCsv` | Token temporal | Procesa hasta 5,000 registros preparados por la interfaz. |
+| `deleteEquipment` | Token temporal | Elimina el artículo y sus movimientos relacionados. |
 
-La API valida nuevamente el rol; no depende del estado visual de los botones.
+La API valida nuevamente el token; no depende del estado visual de los botones.
 
 ### `POST /api/device-models`
 
 Recibe `multipart/form-data` con tipo, modelo, marca, descripción,
-especificaciones y una imagen opcional. Requiere rol `operator` o `admin`.
-Guarda el texto en D1 y los bytes de la imagen en R2.
+especificaciones y una imagen opcional. Requiere el mismo token temporal de
+edición. Guarda el texto en D1 y los bytes de la imagen en R2.
 
 ### `GET /api/device-model-images?key=...`
 
-Valida la sesión y la forma de la clave antes de transmitir el objeto desde R2.
+Valida la forma de la clave antes de transmitir el objeto público desde R2.
 Incluye tipo de contenido, ETag, caché privada y `nosniff` en la respuesta.
 
 ## 11. Importación CSV
@@ -338,14 +334,14 @@ npm test
 
 - renderizado del HTML;
 - bindings y almacenamiento durable;
-- cifrado y autenticación;
+- cifrado y permisos temporales de edición;
 - plantilla CSV;
 - parsing del formato de bodega;
 - series científicas únicas;
 - material por cantidad;
 - captura continua;
 - catálogo de dispositivos y binding R2 para imágenes;
-- ausencia de la sección visual de usuarios.
+- ausencia de cuentas y de almacenamiento del token en el navegador.
 
 Una publicación no debe continuar si falla lint, compilación o pruebas.
 
@@ -355,6 +351,13 @@ Para un cambio sin migración:
 
 ```bash
 npm run deploy:cloudflare
+```
+
+Antes del primer despliegue de este modo, configura la clave mediante la entrada
+interactiva de Wrangler:
+
+```bash
+npx wrangler secret put INVENTORY_WRITE_PASSWORD --config wrangler.jsonc
 ```
 
 Para un cambio con migración:
@@ -398,18 +401,11 @@ No subas:
 - contraseñas o tokens;
 - contenido de `.wrangler/` o `outputs/`.
 
-## 15. Migración futura a Microsoft
+## 15. Evolución futura
 
-La migración de identidad todavía no está implementada. Antes de reemplazar
-Cloudflare Access debe definirse:
-
-- tenant de Microsoft Entra ID;
-- registro de aplicación;
-- correos o grupos autorizados;
-- correspondencia de grupos con `admin`, `operator` y `viewer`;
-- estrategia para enlazar las identidades nuevas con filas existentes de
-  `users` y movimientos históricos;
-- procedimiento de transición y reversión.
-
-La base de inventario y el modelo de roles pueden conservarse; la capa principal
-a reemplazar está en `app/chatgpt-auth.ts` y `lib/inventory-auth.ts`.
+El modo actual no identifica quién realizó cada modificación; los campos de
+actor quedan en `NULL`. Si después se necesitan usuarios individuales,
+atribución por persona, recuperación de clave o permisos diferentes, habrá que
+reemplazar la clave compartida por un proveedor de identidad y enlazar sus
+identificadores con la tabla `users`. Ese cambio no es necesario para el flujo
+interno solicitado actualmente.

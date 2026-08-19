@@ -28,7 +28,7 @@ y el código fuente se mantiene en
   información técnica editable e imagen propia.
 - Catálogo de tiendas y referencias de sala pendientes de relacionar.
 - Historial de movimientos para auditoría.
-- Acceso público temporal para las pruebas previas a la integración con Entra ID.
+- Consulta pública y modificaciones protegidas por una clave de edición compartida.
 
 ## Documentación
 
@@ -47,7 +47,7 @@ y el código fuente se mantiene en
 - Cloudflare D1 como base de datos SQLite administrada.
 - Cloudflare R2 para almacenar las imágenes subidas de los modelos.
 - Drizzle ORM y Drizzle Kit para el esquema y las migraciones.
-- Cloudflare Access preparado para reactivarse cuando se conecte Entra ID.
+- Permisos temporales firmados con HMAC para proteger todas las escrituras.
 - AES-GCM para cifrar las contraseñas almacenadas de los equipos.
 
 ## Inicio rápido para desarrollo
@@ -65,9 +65,9 @@ npm install
 npm run dev
 ```
 
-Con `INVENTORY_PUBLIC_ACCESS=true`, el servidor local y el Worker permiten usar
-el inventario sin iniciar sesión. Esta opción es exclusivamente temporal: antes
-de operar con datos sensibles debe desactivarse y configurarse Entra ID.
+La consulta no requiere inicio de sesión. Para probar modificaciones en local,
+configura `INVENTORY_WRITE_PASSWORD` en `.dev.vars`; la clave debe tener al
+menos 12 caracteres.
 
 Antes de integrar cambios:
 
@@ -95,22 +95,21 @@ npm test
   variables locales en Git.
 - Configurar `INVENTORY_ENCRYPTION_KEY` como secreto de Cloudflare. Si se pierde
   o cambia, las contraseñas cifradas existentes no podrán recuperarse.
+- Configurar `INVENTORY_WRITE_PASSWORD` como secreto de Cloudflare y no como una
+  variable visible ni un valor dentro del repositorio.
 - Crear un respaldo de D1 antes de importaciones grandes o migraciones.
-- Mientras `INVENTORY_PUBLIC_ACCESS=true`, cualquier persona con la URL puede
-  consultar, registrar, editar, importar y exportar inventario. Las contraseñas
-  permanecen cifradas y se excluyen del CSV mientras no exista autenticación.
+- Cualquier persona con la URL puede consultar y exportar el inventario. Crear,
+  editar, importar o eliminar exige un permiso temporal emitido después de
+  validar la clave compartida.
 
-## Estado de autenticación
+## Estado de acceso
 
-La producción está en modo público temporal mediante
-`INVENTORY_PUBLIC_ACCESS=true` mientras se prepara la integración con Entra ID.
-La pantalla de administración de usuarios continúa retirada. El modo público
-opera como `operator`: permite el trabajo de bodega, pero no revela contraseñas
-guardadas ni las incluye en la exportación. La API interna de administración de
-usuarios sigue deshabilitada.
-
-Para cerrar de nuevo el acceso, cambia la variable a `false` y protege el
-Worker con una aplicación de Cloudflare Access conectada a Entra ID.
+No se utilizan cuentas, correos ni Cloudflare Access. La página es pública para
+consulta. Al guardar el primer cambio se solicita la clave compartida y se
+emite un permiso firmado válido por 30 minutos; el navegador lo mantiene solo
+en memoria, así que también se pierde al recargar la página. La API verifica el
+permiso en cada escritura y las contraseñas de los equipos siguen excluidas de
+la exportación.
 
 ## Colaboración en GitHub
 

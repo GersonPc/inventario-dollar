@@ -187,6 +187,23 @@ textarea:focus-visible {
   margin-bottom: 28px;
 }
 
+.page-header-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.write-access-button {
+  white-space: nowrap;
+}
+
+.write-access-button.unlocked {
+  border-color: #acd4bf;
+  background: var(--green-soft);
+  color: var(--green-dark);
+}
+
 .eyebrow {
   margin: 0 0 8px;
   color: var(--green);
@@ -1165,6 +1182,25 @@ p {
   width: min(920px, 100%);
 }
 
+.write-access-backdrop {
+  z-index: 120;
+}
+
+.write-access-modal {
+  width: min(470px, 100%);
+}
+
+.write-access-copy {
+  margin-bottom: 18px;
+  color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.write-access-error {
+  margin: 14px 0 0;
+}
+
 .device-profile-body {
   display: grid;
   grid-template-columns: minmax(210px, 0.72fr) minmax(0, 1.5fr);
@@ -1453,6 +1489,16 @@ p {
   }
 
   .page-header .primary-button {
+    width: 100%;
+  }
+
+  .page-header-actions {
+    width: 100%;
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .page-header-actions .secondary-button {
     width: 100%;
   }
 

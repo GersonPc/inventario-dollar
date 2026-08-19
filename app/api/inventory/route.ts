@@ -1,5 +1,4 @@
 import {
-  and,
   asc,
   desc,
   eq,
@@ -12,15 +11,13 @@ import {
   equipment,
   equipmentMovements,
   stores,
-  users,
 } from "@/db/schema";
 import {
   canWrite,
   getInventoryUser,
-  isPublicAccessEnabled,
-  type InventoryRole,
 } from "@/lib/inventory-auth";
 import { decryptCredential, encryptCredential } from "@/lib/inventory-crypto";
+import { getWriteAccessFailure } from "@/lib/write-access";
 
 type EquipmentInput = {
   id?: number;
@@ -58,26 +55,13 @@ type ActionPayload = {
   storeRecords?: StoreInput[];
   equipmentId?: number;
   store?: { id?: number; storeNumber?: string; name?: string };
-  userId?: string;
-  email?: string;
-  role?: InventoryRole;
-  active?: boolean;
 };
 
-const validRoles = new Set<InventoryRole>(["admin", "operator", "viewer"]);
 const validConditions = new Set(["working", "not_working", "unknown"]);
 const validItemKinds = new Set(["equipment", "material"]);
 
 function clean(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
-}
-
-function normalizeEmail(value: unknown): string {
-  return clean(value).toLowerCase();
-}
-
-function isValidEmail(value: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
 function nullable(value: unknown): string | null {
@@ -213,20 +197,6 @@ export async function GET() {
       .select()
       .from(deviceModelProfiles)
       .orderBy(asc(deviceModelProfiles.deviceType), asc(deviceModelProfiles.model));
-    const userRows =
-      !isPublicAccessEnabled() && currentUser.role === "admin"
-        ? await db
-            .select({
-              id: users.id,
-              email: users.email,
-              displayName: users.displayName,
-              role: users.role,
-              active: users.active,
-            })
-            .from(users)
-            .orderBy(asc(users.displayName))
-        : [];
-
     return Response.json({
       currentUser: {
         id: currentUser.id,
@@ -237,7 +207,7 @@ export async function GET() {
       equipment: equipmentRows,
       stores: storeRows,
       deviceModels: deviceModelRows,
-      users: userRows,
+      users: [],
     });
   } catch (error) {
     return jsonError(
@@ -254,16 +224,12 @@ export async function POST(request: Request) {
       return jsonError("Tu sesión no está activa o tu correo no está autorizado.", 401);
     }
 
+    const writeAccessFailure = await getWriteAccessFailure(request);
+    if (writeAccessFailure) return writeAccessFailure;
+
     const payload = (await request.json()) as ActionPayload;
     const db = getDb();
-    const actorId = isPublicAccessEnabled() ? null : currentUser.id;
-
-    if (
-      isPublicAccessEnabled() &&
-      ["updateRole", "inviteUser", "toggleUser"].includes(payload.action ?? "")
-    ) {
-      return jsonError("La administración de usuarios está desactivada durante el acceso público temporal.", 403);
-    }
+    const actorId = null;
 
     if (payload.action === "revealCredential") {
       if (currentUser.role !== "admin") {
@@ -277,116 +243,6 @@ export async function POST(request: Request) {
         .limit(1);
       if (!row?.credential) return Response.json({ password: null });
       return Response.json({ password: await decryptCredential(row.credential) });
-    }
-
-    if (payload.action === "updateRole") {
-      if (currentUser.role !== "admin") {
-        return jsonError("Solo un administrador puede cambiar roles.", 403);
-      }
-      const targetUserId = clean(payload.userId);
-      const role = payload.role;
-      if (!targetUserId || !role || !validRoles.has(role)) {
-        return jsonError("Usuario o rol inválido.");
-      }
-      const [targetUser] = await db
-        .select({ role: users.role, active: users.active })
-        .from(users)
-        .where(eq(users.id, targetUserId))
-        .limit(1);
-      if (!targetUser) return jsonError("El usuario no existe.", 404);
-      if (targetUser.role === "admin" && targetUser.active && role !== "admin") {
-        const [summary] = await db
-          .select({ count: sql<number>`count(*)` })
-          .from(users)
-          .where(and(eq(users.role, "admin"), eq(users.active, true)));
-        if (Number(summary?.count ?? 0) <= 1) {
-          return jsonError("Debe permanecer al menos un administrador.");
-        }
-      }
-      await db
-        .update(users)
-        .set({ role, updatedAt: new Date().toISOString() })
-        .where(eq(users.id, targetUserId));
-      return Response.json({ ok: true });
-    }
-
-    if (payload.action === "inviteUser") {
-      if (currentUser.role !== "admin") {
-        return jsonError("Solo un administrador puede autorizar usuarios.", 403);
-      }
-      const email = normalizeEmail(payload.email);
-      const role = payload.role;
-      if (!isValidEmail(email)) return jsonError("Ingresa un correo válido.");
-      if (!role || !validRoles.has(role)) return jsonError("Selecciona un rol válido.");
-
-      const [existingUser] = await db
-        .select({ id: users.id, role: users.role, active: users.active })
-        .from(users)
-        .where(eq(users.email, email))
-        .limit(1);
-      if (
-        existingUser?.role === "admin" &&
-        existingUser.active &&
-        role !== "admin"
-      ) {
-        const [summary] = await db
-          .select({ count: sql<number>`count(*)` })
-          .from(users)
-          .where(and(eq(users.role, "admin"), eq(users.active, true)));
-        if (Number(summary?.count ?? 0) <= 1) {
-          return jsonError("Debe permanecer al menos un administrador.");
-        }
-      }
-
-      const now = new Date().toISOString();
-      await db
-        .insert(users)
-        .values({
-          id: `pending:${email}`,
-          email,
-          displayName: email,
-          role,
-          active: true,
-        })
-        .onConflictDoUpdate({
-          target: users.email,
-          set: { role, active: true, updatedAt: now },
-        });
-      return Response.json({ ok: true, reactivated: Boolean(existingUser) });
-    }
-
-    if (payload.action === "toggleUser") {
-      if (currentUser.role !== "admin") {
-        return jsonError("Solo un administrador puede suspender usuarios.", 403);
-      }
-      const targetUserId = clean(payload.userId);
-      const active = payload.active;
-      if (!targetUserId || typeof active !== "boolean") {
-        return jsonError("Usuario o estado inválido.");
-      }
-      if (targetUserId === currentUser.id && !active) {
-        return jsonError("No puedes suspender tu propia cuenta.");
-      }
-      const [targetUser] = await db
-        .select({ role: users.role, active: users.active })
-        .from(users)
-        .where(eq(users.id, targetUserId))
-        .limit(1);
-      if (!targetUser) return jsonError("El usuario no existe.", 404);
-      if (targetUser.role === "admin" && targetUser.active && !active) {
-        const [summary] = await db
-          .select({ count: sql<number>`count(*)` })
-          .from(users)
-          .where(and(eq(users.role, "admin"), eq(users.active, true)));
-        if (Number(summary?.count ?? 0) <= 1) {
-          return jsonError("Debe permanecer al menos un administrador activo.");
-        }
-      }
-      await db
-        .update(users)
-        .set({ active, updatedAt: new Date().toISOString() })
-        .where(eq(users.id, targetUserId));
-      return Response.json({ ok: true });
     }
 
     if (!canWrite(currentUser.role)) {
