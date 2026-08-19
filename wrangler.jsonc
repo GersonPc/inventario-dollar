@@ -1,0 +1,38 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "inventario-dollar",
+  "main": "dist/server/index.js",
+  "base_dir": "dist/server",
+  "compatibility_date": "2026-08-10",
+  "compatibility_flags": ["nodejs_compat"],
+  "rules": [
+    {
+      "type": "ESModule",
+      "globs": ["**/*.js", "**/*.mjs"]
+    }
+  ],
+  "assets": {
+    "directory": "dist/client",
+    "binding": "ASSETS"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "inventario-dollar-db",
+      "database_id": "26f38e1e-8072-4a09-b4ec-4575415f37ba",
+      "migrations_dir": "drizzle"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "DEVICE_IMAGES",
+      "bucket_name": "inventario-dollar-device-images"
+    }
+  ],
+  "vars": {
+    "INVENTORY_WRITE_ACCESS_MINUTES": "30"
+  },
+  "observability": {
+    "enabled": true
+  }
+}

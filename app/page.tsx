@@ -1,15 +1,11 @@
 import type { Metadata } from "next";
-import { SkeletonPreview } from "./_sites-preview/SkeletonPreview";
+import { InventoryApp } from "./InventoryApp";
 
 export const metadata: Metadata = {
-  title: "Your site is taking shape",
-  description:
-    "Your first version will appear here automatically when it’s ready.",
-  other: {
-    "codex-preview": "development",
-  },
+  title: { absolute: "Inventario | Bodega Dollar" },
+  description: "Control interno de equipos y entregas a tiendas Dollar.",
 };
 
 export default function Home() {
-  return <SkeletonPreview />;
+  return <InventoryApp />;
 }
