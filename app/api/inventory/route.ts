@@ -1,10 +1,12 @@
 import {
+  and,
   asc,
   desc,
   eq,
   isNotNull,
-  sql,
+  isNull,
 } from "drizzle-orm";
+import { env } from "cloudflare:workers";
 import { getDb } from "@/db";
 import {
   deviceModelProfiles,
@@ -18,6 +20,7 @@ import {
 } from "@/lib/inventory-auth";
 import { decryptCredential, encryptCredential } from "@/lib/inventory-crypto";
 import { getWriteAccessFailure } from "@/lib/write-access";
+import { matchStoreReference } from "@/lib/store-matching";
 
 type EquipmentInput = {
   id?: number;
@@ -127,33 +130,98 @@ async function resolveStoreId(
   if (!storeNumber) {
     if (!storeReference) return null;
     const db = getDb();
-    const [store] = await db
-      .select({ id: stores.id })
-      .from(stores)
-      .where(
-        /^\d+$/.test(storeReference)
-          ? eq(stores.storeNumber, storeReference)
-          : sql`lower(${stores.name}) = ${storeReference.toLowerCase()}`,
-      )
-      .limit(1);
-    return store?.id ?? null;
+    const storeRows = await db
+      .select({ id: stores.id, storeNumber: stores.storeNumber, name: stores.name })
+      .from(stores);
+    return matchStoreReference(storeReference, storeRows)?.store.id ?? null;
   }
-  if (!storeName) throw new Error(`Falta el nombre de la tienda ${storeNumber}.`);
 
   const db = getDb();
+  const [existingStore] = await db
+    .select({ id: stores.id })
+    .from(stores)
+    .where(eq(stores.storeNumber, storeNumber))
+    .limit(1);
+  if (existingStore) return existingStore.id;
+  if (!storeName) throw new Error(`Falta el nombre de la tienda ${storeNumber}.`);
+
   await db
     .insert(stores)
     .values({ storeNumber, name: storeName })
-    .onConflictDoUpdate({
-      target: stores.storeNumber,
-      set: { name: storeName, updatedAt: new Date().toISOString() },
-    });
+    .onConflictDoNothing({ target: stores.storeNumber });
   const [store] = await db
     .select({ id: stores.id })
     .from(stores)
     .where(eq(stores.storeNumber, storeNumber))
     .limit(1);
   return store?.id ?? null;
+}
+
+async function reconcilePendingStoreReferences(): Promise<{
+  linkedEquipmentCount: number;
+  unresolvedReferenceCount: number;
+}> {
+  const db = getDb();
+  const [storeRows, pendingRows] = await Promise.all([
+    db
+      .select({ id: stores.id, storeNumber: stores.storeNumber, name: stores.name })
+      .from(stores),
+    db
+      .select({ id: equipment.id, storeReference: equipment.storeReference })
+      .from(equipment)
+      .where(
+        and(
+          isNull(equipment.storeId),
+          isNotNull(equipment.storeReference),
+        ),
+      )
+      .limit(5000),
+  ]);
+
+  const matches = pendingRows.flatMap((row) => {
+    const originalReference = row.storeReference ?? "";
+    const match = matchStoreReference(originalReference, storeRows);
+    return match
+      ? [
+          {
+            equipmentId: row.id,
+            reference: originalReference,
+            storeId: match.store.id,
+          },
+        ]
+      : [];
+  });
+  const now = new Date().toISOString();
+  let linkedEquipmentCount = 0;
+
+  for (let offset = 0; offset < matches.length; offset += 100) {
+    const chunk = matches.slice(offset, offset + 100);
+    const statements = chunk.map((match) =>
+      env.DB.prepare(
+        "UPDATE equipment SET store_id = ?, store_reference = NULL, updated_at = ? WHERE id = ? AND store_id IS NULL AND store_reference = ?",
+      ).bind(match.storeId, now, match.equipmentId, match.reference),
+    );
+    const results = await env.DB.batch(statements);
+    linkedEquipmentCount += results.reduce(
+      (total, result) => total + Number(result.meta.changes ?? 0),
+      0,
+    );
+    await env.DB.batch(
+      chunk.map((match) =>
+        env.DB.prepare(
+          "UPDATE equipment_movements SET store_id = ? WHERE equipment_id = ? AND action = 'imported' AND store_id IS NULL",
+        ).bind(match.storeId, match.equipmentId),
+      ),
+    );
+  }
+
+  return {
+    linkedEquipmentCount,
+    unresolvedReferenceCount: Math.max(
+      0,
+      pendingRows.length - linkedEquipmentCount,
+    ),
+  };
 }
 
 export async function GET() {
@@ -300,7 +368,11 @@ export async function POST(request: Request) {
           .update(stores)
           .set({ storeNumber, name, updatedAt: new Date().toISOString() })
           .where(eq(stores.id, storeId));
-        return Response.json({ ok: true, id: storeId });
+        return Response.json({
+          ok: true,
+          id: storeId,
+          ...(await reconcilePendingStoreReferences()),
+        });
       }
 
       await db
@@ -310,7 +382,10 @@ export async function POST(request: Request) {
           target: stores.storeNumber,
           set: { name, updatedAt: new Date().toISOString() },
         });
-      return Response.json({ ok: true });
+      return Response.json({
+        ok: true,
+        ...(await reconcilePendingStoreReferences()),
+      });
     }
 
     if (payload.action === "importStores") {
@@ -385,12 +460,14 @@ export async function POST(request: Request) {
         }
       }
 
+      const relationResult = await reconcilePendingStoreReferences();
       return Response.json({
         createdCount,
         updatedCount,
         unchangedCount,
         skippedCount,
         errors,
+        ...relationResult,
       });
     }
 

@@ -206,9 +206,15 @@ El CSV inicial puede contener solamente el código o solamente el nombre de una
 sala. Mientras no exista el catálogo completo, el sistema conserva ese valor
 como **Referencia de sala importada**.
 
-Cuando se agregue la tienda oficial, abre la ficha, selecciónala en **Tienda
-asignada** y guarda. La referencia temporal se reemplazará por la relación con la
-tienda.
+Al crear, editar o importar el catálogo de tiendas, el sistema vuelve a revisar
+automáticamente esas referencias. Primero busca el número de tienda —incluido
+cuando aparece dentro de textos como `PETAPA/2212`— y después un nombre idéntico
+normalizado. Solo crea la relación cuando encuentra una única coincidencia.
+
+El resumen de la importación indica cuántos artículos fueron relacionados y
+cuántas referencias siguen pendientes. Para una referencia pendiente, abre la
+ficha, selecciona la opción correcta en **Tienda asignada** y guarda. El sistema
+no intenta adivinar códigos inexistentes o coincidencias ambiguas.
 
 ## 11. Datos de red y contraseñas
 

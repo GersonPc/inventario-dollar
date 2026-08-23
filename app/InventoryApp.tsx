@@ -887,9 +887,15 @@ export function InventoryApp() {
     setSaving(true);
     setError("");
     try {
-      await postAction({ action: "saveStore", store: storeForm }, accessToken);
+      const result = await postAction(
+        { action: "saveStore", store: storeForm },
+        accessToken,
+      );
+      const linked = Number(result.linkedEquipmentCount ?? 0);
       setStoreForm({ storeNumber: "", name: "" });
-      setNotice("Tienda guardada correctamente.");
+      setNotice(
+        `Tienda guardada correctamente.${linked ? ` Se relacionaron ${linked} artículos pendientes.` : ""}`,
+      );
       await loadInventory();
     } catch (storeError) {
       setError(writeErrorMessage(storeError, "No se pudo guardar la tienda."));
@@ -906,7 +912,7 @@ export function InventoryApp() {
     setSaving(true);
     setError("");
     try {
-      await postAction(
+      const result = await postAction(
         {
           action: "saveStore",
           store: {
@@ -917,8 +923,11 @@ export function InventoryApp() {
         },
         accessToken,
       );
+      const linked = Number(result.linkedEquipmentCount ?? 0);
       setEditingStore(null);
-      setNotice("Tienda actualizada correctamente.");
+      setNotice(
+        `Tienda actualizada correctamente.${linked ? ` Se relacionaron ${linked} artículos pendientes.` : ""}`,
+      );
       await loadInventory();
     } catch (storeError) {
       setError(writeErrorMessage(storeError, "No se pudo actualizar la tienda."));
@@ -965,9 +974,11 @@ export function InventoryApp() {
       const updated = Number(result.updatedCount ?? 0);
       const unchanged = Number(result.unchangedCount ?? 0);
       const skipped = Number(result.skippedCount ?? 0);
+      const linked = Number(result.linkedEquipmentCount ?? 0);
+      const unresolved = Number(result.unresolvedReferenceCount ?? 0);
       const errors = Array.isArray(result.errors) ? result.errors.map(String) : [];
       setNotice(
-        `Listado procesado: ${created} tiendas nuevas, ${updated} actualizadas, ${unchanged} sin cambios y ${skipped} omitidas.${errors.length ? ` ${errors.slice(0, 3).join(" · ")}` : ""}`,
+        `Listado procesado: ${created} tiendas nuevas, ${updated} actualizadas, ${unchanged} sin cambios y ${skipped} omitidas. ${linked} artículos relacionados con su tienda${unresolved ? ` y ${unresolved} referencias pendientes de revisión` : ""}.${errors.length ? ` ${errors.slice(0, 3).join(" · ")}` : ""}`,
       );
       setStoreCsvRecords([]);
       setStoreCsvName("");

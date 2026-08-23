@@ -111,10 +111,25 @@ No. de Tienda;Nombre de tienda
   ]);
 });
 
-test("provides a dedicated store list import with preview and safe upserts", async () => {
-  const [appSource, apiSource, storeTemplate] = await Promise.all([
+test("matches historical room references to the official store catalog", async () => {
+  const { matchStoreReference } = await import("../lib/store-matching.ts");
+  const stores = [
+    { id: 1, storeNumber: "2212", name: "PETAPA" },
+    { id: 2, storeNumber: "2248", name: "MUNDO MAYA" },
+    { id: 3, storeNumber: "2302", name: "PLAZA LOS CONACASTES" },
+  ];
+
+  assert.equal(matchStoreReference("2302", stores)?.store.id, 3);
+  assert.equal(matchStoreReference("PETAPA/2212", stores)?.store.id, 1);
+  assert.equal(matchStoreReference("Mundo Maya", stores)?.store.id, 2);
+  assert.equal(matchStoreReference("2324", stores), null);
+});
+
+test("provides a dedicated store list import with preview, safe upserts and relation repair", async () => {
+  const [appSource, apiSource, matchingSource, storeTemplate] = await Promise.all([
     readFile(new URL("../app/InventoryApp.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/api/inventory/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../lib/store-matching.ts", import.meta.url), "utf8"),
     readFile(new URL("../public/plantilla-tiendas.csv", import.meta.url), "utf8"),
   ]);
 
@@ -125,6 +140,12 @@ test("provides a dedicated store list import with preview and safe upserts", asy
   assert.match(apiSource, /payload\.action === "importStores"/);
   assert.match(apiSource, /updatedCount/);
   assert.match(apiSource, /unchangedCount/);
+  assert.match(apiSource, /reconcilePendingStoreReferences/);
+  assert.match(apiSource, /env\.DB\.batch\(statements\)/);
+  assert.match(apiSource, /UPDATE equipment_movements SET store_id/);
+  assert.match(apiSource, /linkedEquipmentCount/);
+  assert.match(appSource, /artículos relacionados con su tienda/);
+  assert.match(matchingSource, /embedded_number/);
   assert.match(storeTemplate, /No\. de Tienda;Nombre de tienda/);
 });
 

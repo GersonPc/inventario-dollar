@@ -35,6 +35,7 @@ binding D1 `DB` y las imágenes subidas mediante el binding R2 `DEVICE_IMAGES`.
 | `app/api/write-access/route.ts` | Validación de la clave compartida y emisión del permiso temporal. |
 | `lib/device-models.ts` | Clave normalizada que relaciona tipo y modelo con su ficha. |
 | `lib/inventory-csv.ts` | Lectura, normalización y transformación de archivos CSV. |
+| `lib/store-matching.ts` | Relación determinista de referencias históricas con el catálogo oficial de tiendas. |
 | `lib/inventory-auth.ts` | Identidad anónima de lectura usada por compatibilidad interna. |
 | `lib/write-access.ts` | Comparación segura, firma HMAC, vencimiento y validación de escritura. |
 | `lib/inventory-crypto.ts` | Cifrado y descifrado AES-GCM de credenciales. |
@@ -319,7 +320,14 @@ La importación actual procesa las filas secuencialmente y devuelve:
 El listado independiente de tiendas se procesa con `mapStoresCsv`. La API
 deduplica números dentro del archivo y conserva el `id` de las tiendas
 existentes al actualizar su nombre, por lo que no rompe las relaciones con
-`equipment.store_id`.
+`equipment.store_id`. Después de crear o actualizar tiendas, la API revisa los
+equipos cuyo `store_id` continúa vacío y cuyo `store_reference` conserva una
+referencia histórica. La resolución prioriza el número exacto, luego un número
+incluido en la referencia y finalmente el nombre normalizado. Solo se actualiza
+`equipment.store_id` cuando existe una coincidencia única; los demás valores se
+conservan para revisión manual. Las actualizaciones se envían a D1 en lotes de
+100 sentencias y también completan la tienda del movimiento histórico de
+importación correspondiente.
 
 Las reglas completas están en [Formato e importación CSV](FORMATO_CSV.md).
 

@@ -26,7 +26,8 @@ y el código fuente se mantiene en
 - Reporte imprimible de los registros filtrados, listo para guardar como PDF.
 - Catálogo de dispositivos agrupado por tipo y modelo, con existencias,
   información técnica editable e imagen propia.
-- Catálogo de tiendas y referencias de sala pendientes de relacionar.
+- Catálogo de tiendas con relación automática de equipos por código de sala;
+  las referencias sin una coincidencia única se conservan para revisión manual.
 - Historial de movimientos para auditoría.
 - Consulta pública y modificaciones protegidas por una clave de edición compartida.
 
