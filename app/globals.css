@@ -461,9 +461,33 @@ p {
   position: absolute;
   left: 16px;
   top: 50%;
+  width: 20px;
+  height: 17px;
   transform: translateY(-50%);
   color: var(--green);
-  font-size: 18px;
+  border-radius: 2px;
+  background:
+    linear-gradient(currentColor, currentColor) 0 0 / 6px 1.5px no-repeat,
+    linear-gradient(currentColor, currentColor) 0 0 / 1.5px 6px no-repeat,
+    linear-gradient(currentColor, currentColor) 100% 0 / 6px 1.5px no-repeat,
+    linear-gradient(currentColor, currentColor) 100% 0 / 1.5px 6px no-repeat,
+    linear-gradient(currentColor, currentColor) 0 100% / 6px 1.5px no-repeat,
+    linear-gradient(currentColor, currentColor) 0 100% / 1.5px 6px no-repeat,
+    linear-gradient(currentColor, currentColor) 100% 100% / 6px 1.5px no-repeat,
+    linear-gradient(currentColor, currentColor) 100% 100% / 1.5px 6px no-repeat;
+}
+
+.scanner-symbol::before {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  background: repeating-linear-gradient(
+    90deg,
+    currentColor 0 1px,
+    transparent 1px 3px,
+    currentColor 3px 5px,
+    transparent 5px 6px
+  );
 }
 
 .scanner-hint {
@@ -497,12 +521,54 @@ p {
   background: rgba(255, 255, 255, 0.12);
   color: white;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
   font-weight: 800;
   white-space: nowrap;
 }
 
 .camera-button:hover {
   background: rgba(255, 255, 255, 0.2);
+}
+
+.camera-icon,
+.camera-icon::before,
+.camera-icon::after {
+  box-sizing: border-box;
+}
+
+.camera-icon {
+  position: relative;
+  width: 20px;
+  height: 14px;
+  flex: 0 0 20px;
+  border: 1.7px solid currentColor;
+  border-radius: 3px;
+}
+
+.camera-icon::before {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 6px;
+  width: 6px;
+  height: 6px;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+}
+
+.camera-icon::after {
+  content: "";
+  position: absolute;
+  top: -4px;
+  left: 3px;
+  width: 7px;
+  height: 4px;
+  border: 1.7px solid currentColor;
+  border-bottom: 0;
+  border-radius: 2px 2px 0 0;
 }
 
 .scanner-copy strong {

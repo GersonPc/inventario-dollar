@@ -1229,7 +1229,7 @@ export function InventoryApp() {
                 <div>
                   <label className="scanner-label" htmlFor="barcode-scanner">Lector de código de barras</label>
                   <div className="scanner-input-wrap">
-                    <span className="scanner-symbol" aria-hidden="true">▥</span>
+                    <span className="scanner-symbol" aria-hidden="true" />
                     <input
                       id="barcode-scanner"
                       className="scanner-input"
@@ -1252,7 +1252,8 @@ export function InventoryApp() {
                       setCameraScannerOpen(true);
                     }}
                   >
-                    <span aria-hidden="true">▣</span> Usar cámara
+                    <span className="camera-icon" aria-hidden="true" />
+                    <span>Usar cámara</span>
                   </button>
                   <div className="scanner-copy">
                     <strong>USB o cámara del teléfono</strong>
