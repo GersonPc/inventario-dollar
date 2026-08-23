@@ -138,13 +138,138 @@ textarea:focus-visible {
 .nav-icon {
   width: 27px;
   height: 27px;
+  flex: 0 0 27px;
   border-radius: 8px;
   border: 1px solid currentColor;
   display: grid;
   place-items: center;
-  font-size: 11px;
-  font-weight: 800;
-  opacity: 0.8;
+  opacity: 0.86;
+}
+
+.nav-glyph,
+.nav-glyph::before,
+.nav-glyph::after {
+  box-sizing: border-box;
+}
+
+.nav-glyph {
+  position: relative;
+  display: block;
+  width: 18px;
+  height: 18px;
+}
+
+.nav-glyph::before,
+.nav-glyph::after {
+  content: "";
+  position: absolute;
+}
+
+.nav-icon-inventory .nav-glyph {
+  width: 17px;
+  height: 14px;
+  margin-top: 2px;
+  border: 1.7px solid currentColor;
+  border-radius: 2px;
+}
+
+.nav-icon-inventory .nav-glyph::before {
+  inset: 4px 2px auto;
+  border-top: 1.7px solid currentColor;
+}
+
+.nav-icon-inventory .nav-glyph::after {
+  top: 8px;
+  left: 5px;
+  width: 5px;
+  height: 2px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.nav-icon-devices .nav-glyph {
+  width: 18px;
+  height: 13px;
+  margin-top: -3px;
+  border: 1.7px solid currentColor;
+  border-radius: 2px;
+}
+
+.nav-icon-devices .nav-glyph::before {
+  top: 12px;
+  left: 7px;
+  width: 2px;
+  height: 4px;
+  border-radius: 0 0 1px 1px;
+  background: currentColor;
+}
+
+.nav-icon-devices .nav-glyph::after {
+  top: 15px;
+  left: 4px;
+  width: 8px;
+  height: 2px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.nav-icon-stores .nav-glyph {
+  width: 17px;
+  height: 13px;
+  margin-top: 4px;
+  border: 1.7px solid currentColor;
+  border-top: 0;
+  border-radius: 0 0 2px 2px;
+}
+
+.nav-icon-stores .nav-glyph::before {
+  top: -5px;
+  left: -2px;
+  width: 19px;
+  height: 6px;
+  border: 1.7px solid currentColor;
+  border-radius: 3px 3px 4px 4px;
+  background: linear-gradient(
+    90deg,
+    transparent 0 27%,
+    currentColor 27% 35%,
+    transparent 35% 65%,
+    currentColor 65% 73%,
+    transparent 73%
+  );
+}
+
+.nav-icon-stores .nav-glyph::after {
+  right: 3px;
+  bottom: 0;
+  width: 5px;
+  height: 8px;
+  border: 1.5px solid currentColor;
+  border-bottom: 0;
+}
+
+.nav-icon-import .nav-glyph {
+  background: linear-gradient(currentColor, currentColor) center 1px / 1.7px 10px no-repeat;
+}
+
+.nav-icon-import .nav-glyph::before {
+  top: 4px;
+  left: 5px;
+  width: 8px;
+  height: 8px;
+  border-right: 1.7px solid currentColor;
+  border-bottom: 1.7px solid currentColor;
+  transform: rotate(45deg);
+}
+
+.nav-icon-import .nav-glyph::after {
+  bottom: 0;
+  left: 1px;
+  width: 16px;
+  height: 6px;
+  border: 1.7px solid currentColor;
+  border-top: 0;
+  border-radius: 0 0 3px 3px;
 }
 
 .sidebar-user {

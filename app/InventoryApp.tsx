@@ -1150,11 +1150,11 @@ export function InventoryApp() {
     },
   };
 
-  const navItems: Array<{ id: View; label: string; icon: string }> = [
-    { id: "inventory", label: "Inventario", icon: "EQ" },
-    { id: "devices", label: "Dispositivos", icon: "D" },
-    { id: "stores", label: "Tiendas", icon: "T" },
-    { id: "import", label: "Importar CSV", icon: "CSV" },
+  const navItems: Array<{ id: View; label: string }> = [
+    { id: "inventory", label: "Inventario" },
+    { id: "devices", label: "Dispositivos" },
+    { id: "stores", label: "Tiendas" },
+    { id: "import", label: "Importar CSV" },
   ];
 
   return (
@@ -1173,13 +1173,17 @@ export function InventoryApp() {
               key={item.id}
               type="button"
               className={`nav-button ${view === item.id ? "active" : ""}`}
+              aria-label={item.label}
+              title={item.label}
               onClick={() => {
                 setView(item.id);
                 setError("");
                 setNotice("");
               }}
             >
-              <span className="nav-icon" aria-hidden="true">{item.icon}</span>
+              <span className={`nav-icon nav-icon-${item.id}`} aria-hidden="true">
+                <span className="nav-glyph" />
+              </span>
               <span className="nav-label">{item.label}</span>
             </button>
           ))}
