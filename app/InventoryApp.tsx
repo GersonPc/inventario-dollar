@@ -1275,14 +1275,32 @@ export function InventoryApp() {
                     <div className="panel-meta">{filteredEquipment.length} resultados</div>
                   </div>
                   <div className="panel-actions">
-                    <button className="ghost-button" type="button" onClick={generateReport}>
-                      Generar reporte
+                    <button
+                      className="ghost-button action-icon-button"
+                      type="button"
+                      aria-label="Generar reporte"
+                      data-tooltip="Generar reporte"
+                      onClick={generateReport}
+                    >
+                      <span className="action-glyph action-glyph-report" aria-hidden="true" />
                     </button>
-                    <button className="ghost-button" type="button" onClick={exportCsv}>
-                      Exportar CSV
+                    <button
+                      className="ghost-button action-icon-button"
+                      type="button"
+                      aria-label="Exportar CSV"
+                      data-tooltip="Exportar CSV"
+                      onClick={exportCsv}
+                    >
+                      <span className="action-glyph action-glyph-export" aria-hidden="true" />
                     </button>
-                    <button className="ghost-button" type="button" onClick={() => void loadInventory()}>
-                      Actualizar
+                    <button
+                      className="ghost-button action-icon-button"
+                      type="button"
+                      aria-label="Actualizar"
+                      data-tooltip="Actualizar"
+                      onClick={() => void loadInventory()}
+                    >
+                      <span className="action-glyph action-glyph-refresh" aria-hidden="true" />
                     </button>
                   </div>
                 </div>
