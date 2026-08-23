@@ -433,14 +433,6 @@ p {
   box-shadow: var(--shadow);
 }
 
-.scanner-label {
-  display: block;
-  margin-bottom: 8px;
-  color: #b7cdc2;
-  font-size: 12px;
-  font-weight: 700;
-}
-
 .scanner-input-wrap {
   position: relative;
 }

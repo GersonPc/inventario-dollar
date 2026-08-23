@@ -1268,12 +1268,12 @@ export function InventoryApp() {
             <>
               <section className="scanner-card" aria-label="Lector de código de barras">
                 <div>
-                  <label className="scanner-label" htmlFor="barcode-scanner">Lector de código de barras</label>
                   <div className="scanner-input-wrap">
                     <span className="scanner-symbol" aria-hidden="true" />
                     <input
                       id="barcode-scanner"
                       className="scanner-input"
+                      aria-label="Lector de código de barras"
                       value={query}
                       onChange={(event) => setQuery(event.target.value)}
                       onKeyDown={scanBarcode}
