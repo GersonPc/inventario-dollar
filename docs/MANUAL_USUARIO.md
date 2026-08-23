@@ -165,6 +165,16 @@ movimientos. No elimina la tienda ni afecta otros artículos.
 
 El número de tienda debe ser único.
 
+### Editar una tienda
+
+1. Abre **Tiendas**.
+2. Busca la tienda en **Catálogo de tiendas**.
+3. Selecciona **Editar tienda**.
+4. Corrige el número o el nombre y selecciona **Guardar cambios**.
+
+Los equipos asignados permanecen vinculados porque la edición conserva el
+identificador interno de la tienda. No se permite repetir un número existente.
+
 ### Subir el listado de tiendas
 
 1. Abre **Tiendas**.

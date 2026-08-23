@@ -1088,6 +1088,17 @@ p {
   background: #fbfcfa;
 }
 
+.actions-column {
+  text-align: right !important;
+  white-space: nowrap;
+}
+
+.table-action-button {
+  min-height: 34px;
+  padding: 6px 11px;
+  font-size: 12px;
+}
+
 .barcode {
   font-family: var(--font-geist-mono), monospace;
   font-size: 12px;
@@ -1497,6 +1508,10 @@ p {
 
 .modal-delete-button {
   margin-right: auto;
+}
+
+.store-edit-modal {
+  width: min(620px, 100%);
 }
 
 .device-profile-modal {

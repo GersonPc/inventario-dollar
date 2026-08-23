@@ -262,6 +262,7 @@ export function InventoryApp() {
   const [deviceQuery, setDeviceQuery] = useState("");
   const [editing, setEditing] = useState<EquipmentForm | null>(null);
   const [editingDevice, setEditingDevice] = useState<DeviceModelForm | null>(null);
+  const [editingStore, setEditingStore] = useState<Store | null>(null);
   const [deviceImageFile, setDeviceImageFile] = useState<File | null>(null);
   const [deviceImagePreview, setDeviceImagePreview] = useState("");
   const [removeDeviceImage, setRemoveDeviceImage] = useState(false);
@@ -892,6 +893,35 @@ export function InventoryApp() {
       await loadInventory();
     } catch (storeError) {
       setError(writeErrorMessage(storeError, "No se pudo guardar la tienda."));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const updateStore = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!editingStore) return;
+    const accessToken = await requestWriteAccess();
+    if (!accessToken) return;
+    setSaving(true);
+    setError("");
+    try {
+      await postAction(
+        {
+          action: "saveStore",
+          store: {
+            id: editingStore.id,
+            storeNumber: editingStore.storeNumber,
+            name: editingStore.name,
+          },
+        },
+        accessToken,
+      );
+      setEditingStore(null);
+      setNotice("Tienda actualizada correctamente.");
+      await loadInventory();
+    } catch (storeError) {
+      setError(writeErrorMessage(storeError, "No se pudo actualizar la tienda."));
     } finally {
       setSaving(false);
     }
@@ -1565,9 +1595,9 @@ export function InventoryApp() {
                 </div>
                 {data.stores.length ? (
                   <div className="table-wrap">
-                    <table className="data-table" style={{ minWidth: 620 }}>
-                      <thead><tr><th>No. de tienda</th><th>Nombre</th><th>Equipos asignados</th><th>Última actualización</th></tr></thead>
-                      <tbody>{data.stores.map((store) => <tr key={store.id}><td><span className="barcode">{store.storeNumber}</span></td><td><span className="device-name">{store.name}</span></td><td>{data.equipment.filter((item) => item.storeId === store.id).length}</td><td>{formatDate(store.updatedAt)}</td></tr>)}</tbody>
+                    <table className="data-table" style={{ minWidth: 760 }}>
+                      <thead><tr><th>No. de tienda</th><th>Nombre</th><th>Equipos asignados</th><th>Última actualización</th><th className="actions-column">Acciones</th></tr></thead>
+                      <tbody>{data.stores.map((store) => <tr key={store.id}><td><span className="barcode">{store.storeNumber}</span></td><td><span className="device-name">{store.name}</span></td><td>{data.equipment.filter((item) => item.storeId === store.id).length}</td><td>{formatDate(store.updatedAt)}</td><td className="actions-column"><button className="secondary-button table-action-button" type="button" onClick={() => setEditingStore({ ...store })}>Editar tienda</button></td></tr>)}</tbody>
                     </table>
                   </div>
                 ) : <EmptyState title="Aún no hay tiendas" text="Agrega una tienda manualmente o sube el listado oficial en CSV." />}
@@ -1757,6 +1787,34 @@ export function InventoryApp() {
             <div className="modal-actions">
               <button className="secondary-button" type="button" onClick={closeDeviceProfile} disabled={saving}>Cerrar</button>
               {writable ? <button className="primary-button" type="submit" disabled={saving}>{saving ? "Guardando…" : "Guardar ficha"}</button> : null}
+            </div>
+          </form>
+        </div>
+      ) : null}
+
+      {editingStore ? (
+        <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) setEditingStore(null); }}>
+          <form className="modal store-edit-modal" onSubmit={updateStore} role="dialog" aria-modal="true" aria-labelledby="store-edit-title">
+            <div className="modal-header">
+              <div>
+                <p className="eyebrow">Catálogo de tiendas</p>
+                <h2 id="store-edit-title">Editar tienda</h2>
+              </div>
+              <button className="close-button" type="button" onClick={() => setEditingStore(null)} aria-label="Cerrar edición de tienda" disabled={saving}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="form-grid">
+                <FormField label="No. de tienda" id="edit-store-number">
+                  <input id="edit-store-number" className="input" maxLength={80} value={editingStore.storeNumber} onChange={(event) => setEditingStore({ ...editingStore, storeNumber: event.target.value })} required />
+                </FormField>
+                <FormField label="Nombre de tienda" id="edit-store-name">
+                  <input id="edit-store-name" className="input" maxLength={200} value={editingStore.name} onChange={(event) => setEditingStore({ ...editingStore, name: event.target.value })} required />
+                </FormField>
+              </div>
+            </div>
+            <div className="modal-actions">
+              <button className="secondary-button" type="button" onClick={() => setEditingStore(null)} disabled={saving}>Cancelar</button>
+              <button className="primary-button" type="submit" disabled={saving}>{saving ? "Guardando…" : "Guardar cambios"}</button>
             </div>
           </form>
         </div>

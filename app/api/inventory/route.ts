@@ -43,6 +43,7 @@ type EquipmentInput = {
 };
 
 type StoreInput = {
+  id?: number;
   storeNumber?: string;
   name?: string;
   sourceRow?: number;
@@ -54,7 +55,7 @@ type ActionPayload = {
   records?: EquipmentInput[];
   storeRecords?: StoreInput[];
   equipmentId?: number;
-  store?: { id?: number; storeNumber?: string; name?: string };
+  store?: StoreInput;
 };
 
 const validConditions = new Set(["working", "not_working", "unknown"]);
@@ -273,6 +274,35 @@ export async function POST(request: Request) {
       if (!storeNumber || !name) {
         return jsonError("El número y el nombre de tienda son obligatorios.");
       }
+      if (storeNumber.length > 80 || name.length > 200) {
+        return jsonError("El número o el nombre de tienda es demasiado largo.");
+      }
+
+      const storeId = Number(input.id);
+      if (Number.isInteger(storeId) && storeId > 0) {
+        const [existing] = await db
+          .select({ id: stores.id })
+          .from(stores)
+          .where(eq(stores.id, storeId))
+          .limit(1);
+        if (!existing) return jsonError("La tienda ya no existe.", 404);
+
+        const [numberConflict] = await db
+          .select({ id: stores.id })
+          .from(stores)
+          .where(eq(stores.storeNumber, storeNumber))
+          .limit(1);
+        if (numberConflict && numberConflict.id !== storeId) {
+          return jsonError(`Ya existe una tienda con el número ${storeNumber}.`, 409);
+        }
+
+        await db
+          .update(stores)
+          .set({ storeNumber, name, updatedAt: new Date().toISOString() })
+          .where(eq(stores.id, storeId));
+        return Response.json({ ok: true, id: storeId });
+      }
+
       await db
         .insert(stores)
         .values({ storeNumber, name })

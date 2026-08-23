@@ -128,6 +128,20 @@ test("provides a dedicated store list import with preview and safe upserts", asy
   assert.match(storeTemplate, /No\. de Tienda;Nombre de tienda/);
 });
 
+test("allows editing a store from the catalog without changing its internal id", async () => {
+  const [appSource, apiSource] = await Promise.all([
+    readFile(new URL("../app/InventoryApp.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/inventory/route.ts", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(appSource, /Editar tienda/);
+  assert.match(appSource, /setEditingStore\(\{ \.\.\.store \}\)/);
+  assert.match(appSource, /id: editingStore\.id/);
+  assert.match(appSource, /Guardar cambios/);
+  assert.match(apiSource, /numberConflict\.id !== storeId/);
+  assert.match(apiSource, /where\(eq\(stores\.id, storeId\)\)/);
+});
+
 test("keeps the equipment dialog ready for continuous barcode capture", async () => {
   const appSource = await readFile(
     new URL("../app/InventoryApp.tsx", import.meta.url),
