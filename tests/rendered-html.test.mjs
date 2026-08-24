@@ -191,6 +191,11 @@ test("exports filtered CSV records and supports a phone camera barcode scanner",
   assert.match(appSource, /reportWindow\.print\(\)/);
   assert.match(appSource, /decodeFromConstraints/);
   assert.match(appSource, /facingMode: \{ ideal: "environment" \}/);
+  assert.match(appSource, /DecodeHintType\.TRY_HARDER/);
+  assert.match(appSource, /BarcodeFormat\.CODE_128/);
+  assert.match(appSource, /BarcodeDetector/);
+  assert.match(appSource, /focusMode: "continuous"/);
+  assert.match(appSource, /Encender linterna/);
   assert.match(appSource, /Usar cámara/);
   assert.match(packageSource, /"@zxing\/browser"/);
 });

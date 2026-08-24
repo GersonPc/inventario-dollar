@@ -163,6 +163,20 @@ const conditionLabels: Record<Condition, string> = {
 
 type CameraScannerControls = {
   stop: () => void;
+  switchTorch?: (enabled: boolean) => Promise<void>;
+};
+
+type NativeBarcodeDetector = {
+  detect: (source: HTMLVideoElement) => Promise<Array<{ rawValue: string }>>;
+};
+
+type NativeBarcodeDetectorConstructor = {
+  new (options?: { formats?: string[] }): NativeBarcodeDetector;
+  getSupportedFormats?: () => Promise<string[]>;
+};
+
+type CameraCapabilities = MediaTrackCapabilities & {
+  focusMode?: string[];
 };
 
 function formatDate(value: string | null): string {
@@ -278,11 +292,16 @@ export function InventoryApp() {
   const [cameraScannerOpen, setCameraScannerOpen] = useState(false);
   const [cameraScannerStatus, setCameraScannerStatus] = useState("");
   const [cameraScannerError, setCameraScannerError] = useState("");
+  const [cameraDevices, setCameraDevices] = useState<MediaDeviceInfo[]>([]);
+  const [selectedCameraId, setSelectedCameraId] = useState("");
+  const [cameraTorchAvailable, setCameraTorchAvailable] = useState(false);
+  const [cameraTorchOn, setCameraTorchOn] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const storeFileInput = useRef<HTMLInputElement>(null);
   const barcodeInput = useRef<HTMLInputElement>(null);
   const cameraVideo = useRef<HTMLVideoElement>(null);
   const cameraScannerControls = useRef<CameraScannerControls | null>(null);
+  const cameraScannerFrame = useRef<number | null>(null);
   const deviceImageObjectUrl = useRef("");
   const writeToken = useRef("");
   const writeTokenExpiresAt = useRef(0);
@@ -615,12 +634,18 @@ export function InventoryApp() {
   };
 
   const stopCameraScanner = useCallback(() => {
+    if (cameraScannerFrame.current !== null) {
+      window.cancelAnimationFrame(cameraScannerFrame.current);
+      cameraScannerFrame.current = null;
+    }
     cameraScannerControls.current?.stop();
     cameraScannerControls.current = null;
     const video = cameraVideo.current;
     const stream = video?.srcObject as MediaStream | null;
     stream?.getTracks().forEach((track) => track.stop());
     if (video) video.srcObject = null;
+    setCameraTorchAvailable(false);
+    setCameraTorchOn(false);
   }, []);
 
   const closeCameraScanner = useCallback(() => {
@@ -632,6 +657,7 @@ export function InventoryApp() {
     (value: string) => {
       const barcode = value.trim();
       if (!barcode) return;
+      navigator.vibrate?.(120);
       stopCameraScanner();
       setCameraScannerOpen(false);
       setQuery(barcode);
@@ -656,6 +682,7 @@ export function InventoryApp() {
     let cancelled = false;
     let detected = false;
     let controls: CameraScannerControls | null = null;
+    let helpTimer = 0;
 
     const startCameraScanner = async () => {
       if (!navigator.mediaDevices?.getUserMedia || !cameraVideo.current) {
@@ -665,26 +692,75 @@ export function InventoryApp() {
       setCameraScannerStatus("Solicitando acceso a la cámara…");
       setCameraScannerError("");
       try {
-        const { BrowserMultiFormatReader } = await import("@zxing/browser");
+        const [
+          { BrowserMultiFormatReader },
+          {
+            BarcodeFormat,
+            ChecksumException,
+            DecodeHintType,
+            FormatException,
+            NotFoundException,
+          },
+        ] = await Promise.all([
+          import("@zxing/browser"),
+          import("@zxing/library"),
+        ]);
         if (cancelled || !cameraVideo.current) return;
-        const reader = new BrowserMultiFormatReader(undefined, {
-          delayBetweenScanAttempts: 120,
+
+        const inventoryFormats = [
+          BarcodeFormat.CODE_128,
+          BarcodeFormat.CODE_39,
+          BarcodeFormat.CODE_93,
+          BarcodeFormat.CODABAR,
+          BarcodeFormat.EAN_13,
+          BarcodeFormat.EAN_8,
+          BarcodeFormat.UPC_A,
+          BarcodeFormat.UPC_E,
+          BarcodeFormat.ITF,
+          BarcodeFormat.QR_CODE,
+          BarcodeFormat.DATA_MATRIX,
+        ];
+        const hints = new Map();
+        hints.set(DecodeHintType.POSSIBLE_FORMATS, inventoryFormats);
+        hints.set(DecodeHintType.TRY_HARDER, true);
+
+        const reader = new BrowserMultiFormatReader(hints, {
+          delayBetweenScanAttempts: 160,
           delayBetweenScanSuccess: 900,
         });
+        const videoConstraints: MediaTrackConstraints = selectedCameraId
+          ? {
+              deviceId: { exact: selectedCameraId },
+              width: { ideal: 1920 },
+              height: { ideal: 1080 },
+            }
+          : {
+              facingMode: { ideal: "environment" },
+              width: { ideal: 1920 },
+              height: { ideal: 1080 },
+            };
         controls = await reader.decodeFromConstraints(
           {
             audio: false,
-            video: {
-              facingMode: { ideal: "environment" },
-              width: { ideal: 1280 },
-              height: { ideal: 720 },
-            },
+            video: videoConstraints,
           },
           cameraVideo.current,
-          (result) => {
-            if (!result || detected) return;
-            detected = true;
-            processCameraBarcode(result.getText());
+          (result, scanError) => {
+            if (result && !detected) {
+              detected = true;
+              processCameraBarcode(result.getText());
+              return;
+            }
+            if (
+              scanError &&
+              !(scanError instanceof NotFoundException) &&
+              !(scanError instanceof ChecksumException) &&
+              !(scanError instanceof FormatException)
+            ) {
+              setCameraScannerError(
+                "El lector se detuvo inesperadamente. Cierra la cámara y vuelve a intentarlo.",
+              );
+            }
           },
         );
         if (cancelled || detected) {
@@ -692,7 +768,102 @@ export function InventoryApp() {
           return;
         }
         cameraScannerControls.current = controls;
-        setCameraScannerStatus("Apunta la cámara al código de barras.");
+        setCameraTorchAvailable(Boolean(controls.switchTorch));
+
+        const video = cameraVideo.current;
+        const videoTrack = (video.srcObject as MediaStream | null)
+          ?.getVideoTracks()
+          .at(0);
+        if (videoTrack) {
+          try {
+            const capabilities = videoTrack.getCapabilities() as CameraCapabilities;
+            if (capabilities.focusMode?.includes("continuous")) {
+              await videoTrack.applyConstraints({
+                advanced: [
+                  { focusMode: "continuous" } as MediaTrackConstraintSet,
+                ],
+              });
+            }
+          } catch {
+            // Some mobile browsers report focus capabilities but reject the constraint.
+          }
+        }
+
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        if (!cancelled) {
+          setCameraDevices(devices.filter((device) => device.kind === "videoinput"));
+        }
+
+        const detectorConstructor = (
+          window as Window & { BarcodeDetector?: NativeBarcodeDetectorConstructor }
+        ).BarcodeDetector;
+        if (detectorConstructor && video) {
+          try {
+            const desiredNativeFormats = [
+              "code_128",
+              "code_39",
+              "code_93",
+              "codabar",
+              "ean_13",
+              "ean_8",
+              "upc_a",
+              "upc_e",
+              "itf",
+              "qr_code",
+              "data_matrix",
+            ];
+            const supportedFormats = detectorConstructor.getSupportedFormats
+              ? await detectorConstructor.getSupportedFormats()
+              : desiredNativeFormats;
+            const nativeFormats = desiredNativeFormats.filter((format) =>
+              supportedFormats.includes(format),
+            );
+            const nativeDetector = new detectorConstructor(
+              nativeFormats.length ? { formats: nativeFormats } : undefined,
+            );
+            const detectNativeBarcode = async () => {
+              if (cancelled || detected || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+                if (!cancelled && !detected) {
+                  cameraScannerFrame.current = window.requestAnimationFrame(
+                    () => void detectNativeBarcode(),
+                  );
+                }
+                return;
+              }
+              try {
+                const [nativeResult] = await nativeDetector.detect(video);
+                if (nativeResult?.rawValue && !detected) {
+                  detected = true;
+                  processCameraBarcode(nativeResult.rawValue);
+                  return;
+                }
+              } catch {
+                // ZXing continues scanning if the native detector rejects a frame.
+              }
+              if (!cancelled && !detected) {
+                cameraScannerFrame.current = window.requestAnimationFrame(
+                  () => void detectNativeBarcode(),
+                );
+              }
+            };
+            cameraScannerFrame.current = window.requestAnimationFrame(
+              () => void detectNativeBarcode(),
+            );
+          } catch {
+            // ZXing remains the compatible fallback on browsers without native detection.
+          }
+        }
+
+        setCameraScannerStatus(
+          "Lector activo. Centra las barras, mantén el teléfono firme y prueba a acercarlo o alejarlo.",
+        );
+        helpTimer = window.setTimeout(() => {
+          if (!cancelled && !detected) {
+            setCameraScannerStatus(
+              "Aún buscando… Evita reflejos, llena el recuadro con el código y prueba otra cámara si aparece disponible.",
+            );
+          }
+        }, 7000);
       } catch (cameraError) {
         if (cancelled) return;
         const name = cameraError instanceof DOMException ? cameraError.name : "";
@@ -709,10 +880,24 @@ export function InventoryApp() {
     return () => {
       cancelled = true;
       window.clearTimeout(startTimer);
+      window.clearTimeout(helpTimer);
       controls?.stop();
       stopCameraScanner();
     };
-  }, [cameraScannerOpen, processCameraBarcode, stopCameraScanner]);
+  }, [cameraScannerOpen, processCameraBarcode, selectedCameraId, stopCameraScanner]);
+
+  const toggleCameraTorch = async () => {
+    const controls = cameraScannerControls.current;
+    if (!controls?.switchTorch) return;
+    const nextValue = !cameraTorchOn;
+    try {
+      await controls.switchTorch(nextValue);
+      setCameraTorchOn(nextValue);
+      setCameraScannerError("");
+    } catch {
+      setCameraScannerError("Este teléfono no permitió cambiar la linterna.");
+    }
+  };
 
   const scanBarcode = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key !== "Enter") return;
@@ -1897,6 +2082,32 @@ export function InventoryApp() {
               </div>
               <p className="camera-instructions">{cameraScannerStatus || "Da permiso a la cámara y centra el código dentro del recuadro."}</p>
               {cameraScannerError ? <div className="error-banner" role="alert">{cameraScannerError}</div> : null}
+              {cameraDevices.length > 1 || cameraTorchAvailable ? (
+                <div className="camera-controls">
+                  {cameraDevices.length > 1 ? (
+                    <label className="camera-selector">
+                      <span>Cámara</span>
+                      <select
+                        className="select"
+                        value={selectedCameraId}
+                        onChange={(event) => setSelectedCameraId(event.target.value)}
+                      >
+                        <option value="">Trasera automática</option>
+                        {cameraDevices.map((device, index) => (
+                          <option key={device.deviceId} value={device.deviceId}>
+                            {device.label || `Cámara ${index + 1}`}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : null}
+                  {cameraTorchAvailable ? (
+                    <button className="secondary-button camera-torch-button" type="button" onClick={() => void toggleCameraTorch()}>
+                      {cameraTorchOn ? "Apagar linterna" : "Encender linterna"}
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
             <div className="modal-actions">
               <button className="secondary-button" type="button" onClick={closeCameraScanner}>Cancelar</button>
