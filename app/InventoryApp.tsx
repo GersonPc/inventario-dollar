@@ -199,6 +199,22 @@ function normalized(value: unknown): string {
     .trim();
 }
 
+function cameraBaseName(device: MediaDeviceInfo, index: number): string {
+  const label = normalized(device.label);
+  const isFront = /\b(front|user|frontal|delantera)\b/.test(label);
+  const isBack = /\b(back|rear|environment|trasera|posterior)\b/.test(label);
+
+  if (isFront) return "Cámara frontal";
+  if (isBack && /\b(ultrawide|ultra wide|gran angular)\b/.test(label)) {
+    return "Cámara trasera · Gran angular";
+  }
+  if (isBack && /\b(telephoto|telefoto|zoom)\b/.test(label)) {
+    return "Cámara trasera · Zoom";
+  }
+  if (isBack) return "Cámara trasera";
+  return `Cámara ${index + 1}`;
+}
+
 function csvCell(value: unknown): string {
   const text = String(value ?? "");
   const safeText = /^[=+\-@]/.test(text) ? `'${text}` : text;
@@ -357,6 +373,22 @@ export function InventoryApp() {
       ),
     [data?.equipment],
   );
+  const cameraOptions = useMemo(() => {
+    const baseNames = cameraDevices.map(cameraBaseName);
+    const totals = new Map<string, number>();
+    const positions = new Map<string, number>();
+    baseNames.forEach((name) => totals.set(name, (totals.get(name) ?? 0) + 1));
+
+    return cameraDevices.map((device, index) => {
+      const baseName = baseNames[index];
+      const position = (positions.get(baseName) ?? 0) + 1;
+      positions.set(baseName, position);
+      return {
+        device,
+        name: (totals.get(baseName) ?? 0) > 1 ? `${baseName} ${position}` : baseName,
+      };
+    });
+  }, [cameraDevices]);
 
   const filteredEquipment = useMemo(() => {
     const search = normalized(query);
@@ -2086,16 +2118,16 @@ export function InventoryApp() {
                 <div className="camera-controls">
                   {cameraDevices.length > 1 ? (
                     <label className="camera-selector">
-                      <span>Cámara</span>
+                      <span>Elegir cámara</span>
                       <select
                         className="select"
                         value={selectedCameraId}
                         onChange={(event) => setSelectedCameraId(event.target.value)}
                       >
-                        <option value="">Trasera automática</option>
-                        {cameraDevices.map((device, index) => (
+                        <option value="">Cámara trasera · Automática</option>
+                        {cameraOptions.map(({ device, name }) => (
                           <option key={device.deviceId} value={device.deviceId}>
-                            {device.label || `Cámara ${index + 1}`}
+                            {name}
                           </option>
                         ))}
                       </select>
