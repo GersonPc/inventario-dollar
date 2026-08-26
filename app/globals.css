@@ -188,6 +188,22 @@ textarea:focus-visible {
   background: currentColor;
 }
 
+.nav-icon-summary .nav-glyph {
+  border-bottom: 1.7px solid currentColor;
+}
+
+.nav-icon-summary .nav-glyph::before {
+  left: 1px;
+  bottom: 2px;
+  width: 4px;
+  height: 7px;
+  border-radius: 1px 1px 0 0;
+  background: currentColor;
+  box-shadow:
+    6px -4px 0 currentColor,
+    12px -8px 0 currentColor;
+}
+
 .nav-icon-devices .nav-glyph {
   width: 18px;
   height: 13px;
@@ -657,6 +673,110 @@ h3 {
   margin-top: 3px;
   color: var(--ink-muted);
   font-size: 11px;
+}
+
+.device-summary-panel {
+  overflow: visible;
+}
+
+.device-summary-table-wrap {
+  overflow: hidden;
+  border-radius: 0 0 16px 16px;
+}
+
+.device-summary-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.device-summary-table th,
+.device-summary-table td {
+  padding: 16px 20px;
+  text-align: left;
+}
+
+.device-summary-table thead th {
+  border-bottom: 1px solid var(--line);
+  background: var(--green-soft);
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.device-summary-table thead th:last-child,
+.device-summary-table tbody td:last-child,
+.device-summary-table tfoot td {
+  width: 150px;
+  text-align: right;
+}
+
+.device-summary-table tbody tr {
+  border-bottom: 1px solid var(--line);
+}
+
+.device-summary-table tbody tr:hover {
+  background: rgba(196, 235, 194, 0.16);
+}
+
+.device-summary-table tbody td:last-child {
+  font-size: 22px;
+  font-weight: 750;
+  letter-spacing: -0.035em;
+}
+
+.device-summary-type-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.9fr) minmax(120px, 1.5fr);
+  align-items: center;
+  gap: 22px;
+}
+
+.device-summary-type-copy {
+  min-width: 0;
+}
+
+.device-summary-type-copy strong {
+  display: block;
+  overflow-wrap: anywhere;
+  font-size: 15px;
+  letter-spacing: -0.01em;
+}
+
+.device-summary-type-copy span {
+  display: block;
+  margin-top: 3px;
+  color: var(--ink-muted);
+  font-size: 11px;
+}
+
+.device-summary-progress {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--paper);
+}
+
+.device-summary-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--green-hover);
+}
+
+.device-summary-table tfoot th,
+.device-summary-table tfoot td {
+  border-top: 2px solid var(--green-hover);
+  background: var(--green);
+  color: var(--ink);
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.device-summary-table tfoot td {
+  font-size: 24px;
+  letter-spacing: -0.04em;
 }
 
 .panel {
@@ -2006,6 +2126,26 @@ h3 {
 
   .stat-card {
     min-height: 100px;
+  }
+
+  .device-summary-table th,
+  .device-summary-table td {
+    padding: 14px 15px;
+  }
+
+  .device-summary-table thead th:last-child,
+  .device-summary-table tbody td:last-child,
+  .device-summary-table tfoot td {
+    width: 92px;
+  }
+
+  .device-summary-type-row {
+    grid-template-columns: 1fr;
+    gap: 9px;
+  }
+
+  .device-summary-table tbody td:last-child {
+    font-size: 19px;
   }
 
   .field.full {

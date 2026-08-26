@@ -200,6 +200,21 @@ test("exports filtered CSV records and supports a phone camera barcode scanner",
   assert.match(packageSource, /"@zxing\/browser"/);
 });
 
+test("shows a device summary grouped by type with a general total", async () => {
+  const appSource = await readFile(
+    new URL("../app/InventoryApp.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(appSource, /"summary"/);
+  assert.match(appSource, /label: "Resumen"/);
+  assert.match(appSource, /item\.itemKind !== "equipment"/);
+  assert.match(appSource, /current\.units \+= item\.quantity/);
+  assert.match(appSource, /Dispositivos por tipo/);
+  assert.match(appSource, /Total general/);
+  assert.match(appSource, /Los materiales no se incluyen/);
+});
+
 test("removes user administration from the application interface", async () => {
   const appSource = await readFile(
     new URL("../app/InventoryApp.tsx", import.meta.url),
