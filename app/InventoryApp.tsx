@@ -464,8 +464,9 @@ export function InventoryApp() {
       (sum, item) => sum + item.delivered,
       0,
     );
-    const largestGroup = deviceTypeSummary.reduce(
-      (largest, item) => Math.max(largest, item.units),
+    const assignedToStore = (data?.equipment ?? []).reduce(
+      (sum, item) =>
+        item.itemKind === "equipment" && item.storeId ? sum + item.quantity : sum,
       0,
     );
     return {
@@ -473,9 +474,10 @@ export function InventoryApp() {
       total,
       warehouse,
       delivered,
-      largestGroup,
+      assignedToStore,
+      withoutStore: total - assignedToStore,
     };
-  }, [deviceTypeSummary]);
+  }, [data?.equipment, deviceTypeSummary]);
 
   const deviceCatalogGroups = useMemo(() => {
     const profiles = new Map(
@@ -1410,6 +1412,49 @@ export function InventoryApp() {
     setNotice("Reporte generado. Usa Imprimir o Guardar como PDF en la nueva ventana.");
   };
 
+  const generateSummaryReport = (scope: "all" | "types" | "stores") => {
+    if (!deviceSummaryStats.total) {
+      setError("No hay dispositivos para generar el reporte del resumen.");
+      return;
+    }
+    const reportWindow = window.open("", "_blank", "width=980,height=820");
+    if (!reportWindow) {
+      setError("El navegador bloqueó la ventana del reporte. Permite ventanas emergentes e inténtalo de nuevo.");
+      return;
+    }
+    reportWindow.opener = null;
+    setError("");
+
+    const generatedAt = new Intl.DateTimeFormat("es-GT", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(new Date());
+    const typeRows = deviceTypeSummary
+      .map(
+        (item) =>
+          `<tr><td><strong>${htmlText(item.deviceType)}</strong><br><small>${item.warehouse.toLocaleString("es-GT")} en bodega · ${item.delivered.toLocaleString("es-GT")} entregados</small></td><td>${item.units.toLocaleString("es-GT")}</td></tr>`,
+      )
+      .join("");
+    const typeSection = `<section><h2>Dispositivos por tipo</h2><table><thead><tr><th>Tipo de equipo</th><th>Cantidad</th></tr></thead><tbody>${typeRows}</tbody><tfoot><tr><th>Total general</th><td>${deviceSummaryStats.total.toLocaleString("es-GT")}</td></tr></tfoot></table></section>`;
+    const assignmentSection = `<section><h2>Asignación a tiendas</h2><table><thead><tr><th>Estado de asignación</th><th>Cantidad</th></tr></thead><tbody><tr><td><strong>Con tienda asignada</strong><br><small>Relacionados con una tienda del catálogo</small></td><td>${deviceSummaryStats.assignedToStore.toLocaleString("es-GT")}</td></tr><tr><td><strong>Sin tienda asignada</strong><br><small>Pendientes de relacionar con una tienda</small></td><td>${deviceSummaryStats.withoutStore.toLocaleString("es-GT")}</td></tr></tbody><tfoot><tr><th>Total general</th><td>${deviceSummaryStats.total.toLocaleString("es-GT")}</td></tr></tfoot></table></section>`;
+    const sections = scope === "types"
+      ? typeSection
+      : scope === "stores"
+        ? assignmentSection
+        : `${typeSection}${assignmentSection}`;
+    const reportTitle = scope === "types"
+      ? "Resumen por tipo de equipo"
+      : scope === "stores"
+        ? "Resumen de asignación a tiendas"
+        : "Resumen general de dispositivos";
+
+    reportWindow.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>${htmlText(reportTitle)} · Inventario Dollar</title><style>@import url("https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap");@page{margin:16mm}*{box-sizing:border-box}body{font-family:"Outfit",sans-serif;color:#1d1d1d;margin:0;font-weight:400}h1{margin:0;font-size:26px}h2{margin:26px 0 10px;font-size:17px}p{color:rgba(29,29,29,.62);margin:7px 0 0}.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:22px 0}.metric{border:1px solid #dcdcdc;border-radius:10px;padding:12px;font-size:11px}.metric strong{display:block;font-size:22px;margin-top:5px}section{break-inside:avoid}table{width:100%;border-collapse:collapse;font-size:12px}th{background:rgba(196,235,194,.4);text-align:left;padding:10px}th:last-child,td:last-child{text-align:right;width:120px}td{padding:10px;border-top:1px solid #dcdcdc;vertical-align:top}tfoot th,tfoot td{background:#c4ebc2;font-weight:700;border-top:2px solid #8fcb8a}small{color:rgba(29,29,29,.62)}@media print{body{print-color-adjust:exact;-webkit-print-color-adjust:exact}}</style></head><body><h1>${htmlText(reportTitle)}</h1><p>Inventario Dollar · Generado: ${htmlText(generatedAt)}</p><div class="metrics"><div class="metric">Tipos de equipo<strong>${deviceSummaryStats.types.toLocaleString("es-GT")}</strong></div><div class="metric">Dispositivos<strong>${deviceSummaryStats.total.toLocaleString("es-GT")}</strong></div><div class="metric">En bodega<strong>${deviceSummaryStats.warehouse.toLocaleString("es-GT")}</strong></div><div class="metric">Entregados<strong>${deviceSummaryStats.delivered.toLocaleString("es-GT")}</strong></div></div>${sections}</body></html>`);
+    reportWindow.document.close();
+    reportWindow.focus();
+    window.setTimeout(() => reportWindow.print(), 250);
+    setNotice(`Reporte generado: ${reportTitle}. Usa Imprimir o Guardar como PDF.`);
+  };
+
   if (loading) {
     return (
       <main className="loading-screen" aria-live="polite">
@@ -1531,6 +1576,16 @@ export function InventoryApp() {
               {view === "inventory" && writable ? (
                 <button className="primary-button" type="button" onClick={() => openEquipment()}>
                   + Registrar artículo
+                </button>
+              ) : null}
+              {view === "summary" ? (
+                <button
+                  className="primary-button"
+                  type="button"
+                  onClick={() => generateSummaryReport("all")}
+                  disabled={!deviceSummaryStats.total}
+                >
+                  Generar reporte completo
                 </button>
               ) : null}
             </div>
@@ -1699,74 +1754,108 @@ export function InventoryApp() {
                 <Stat label="Entregados" value={deviceSummaryStats.delivered} foot="Asignados fuera de bodega" />
               </section>
 
-              <section className="panel device-summary-panel">
-                <div className="panel-header">
-                  <div>
-                    <h2 className="panel-title">Dispositivos por tipo</h2>
-                    <div className="panel-meta">
-                      {deviceTypeSummary.length} {deviceTypeSummary.length === 1 ? "tipo registrado" : "tipos registrados"}
+              <div className="summary-panels-grid">
+                <section className="panel device-summary-panel">
+                  <div className="panel-header">
+                    <div>
+                      <h2 className="panel-title">Dispositivos por tipo</h2>
+                      <div className="panel-meta">
+                        {deviceTypeSummary.length} {deviceTypeSummary.length === 1 ? "tipo registrado" : "tipos registrados"}
+                      </div>
                     </div>
+                    <button
+                      className="ghost-button action-icon-button"
+                      type="button"
+                      aria-label="Generar reporte por tipo de equipo"
+                      data-tooltip="Reporte por tipo"
+                      onClick={() => generateSummaryReport("types")}
+                      disabled={!deviceSummaryStats.total}
+                    >
+                      <span className="action-glyph action-glyph-report" aria-hidden="true" />
+                    </button>
                   </div>
-                  <button
-                    className="ghost-button action-icon-button"
-                    type="button"
-                    aria-label="Actualizar resumen"
-                    data-tooltip="Actualizar resumen"
-                    onClick={() => void loadInventory()}
-                  >
-                    <span className="action-glyph action-glyph-refresh" aria-hidden="true" />
-                  </button>
-                </div>
 
-                {deviceTypeSummary.length ? (
-                  <div className="device-summary-table-wrap">
-                    <table className="device-summary-table">
-                      <thead>
-                        <tr>
-                          <th>Tipo de equipo</th>
-                          <th>Cantidad</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {deviceTypeSummary.map((item) => (
-                          <tr key={normalized(item.deviceType)}>
-                            <td>
-                              <div className="device-summary-type-row">
+                  {deviceTypeSummary.length ? (
+                    <div className="device-summary-table-wrap">
+                      <table className="device-summary-table">
+                        <thead>
+                          <tr>
+                            <th>Tipo de equipo</th>
+                            <th>Cantidad</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {deviceTypeSummary.map((item) => (
+                            <tr key={normalized(item.deviceType)}>
+                              <td>
                                 <div className="device-summary-type-copy">
                                   <strong>{item.deviceType}</strong>
                                   <span>{item.warehouse} en bodega · {item.delivered} entregados</span>
                                 </div>
-                                <div className="device-summary-progress" aria-hidden="true">
-                                  <span
-                                    style={{
-                                      width: `${Math.max(
-                                        4,
-                                        (item.units / deviceSummaryStats.largestGroup) * 100,
-                                      )}%`,
-                                    }}
-                                  />
-                                </div>
-                              </div>
-                            </td>
-                            <td>{item.units.toLocaleString("es-GT")}</td>
+                              </td>
+                              <td>{item.units.toLocaleString("es-GT")}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot>
+                          <tr>
+                            <th>Total general</th>
+                            <td>{deviceSummaryStats.total.toLocaleString("es-GT")}</td>
                           </tr>
-                        ))}
-                      </tbody>
-                      <tfoot>
-                        <tr>
-                          <th>Total general</th>
-                          <td>{deviceSummaryStats.total.toLocaleString("es-GT")}</td>
-                        </tr>
-                      </tfoot>
-                    </table>
+                        </tfoot>
+                      </table>
+                    </div>
+                  ) : (
+                    <EmptyState
+                      title="Aún no hay dispositivos para resumir"
+                      text="Los tipos y sus cantidades aparecerán aquí cuando registres o importes el primer equipo. Los materiales no se incluyen en este resumen."
+                    />
+                  )}
+                </section>
+
+                <section className="panel device-summary-panel store-assignment-panel">
+                  <div className="panel-header">
+                    <div>
+                      <h2 className="panel-title">Asignación a tiendas</h2>
+                      <div className="panel-meta">Relación actual de los dispositivos</div>
+                    </div>
+                    <button
+                      className="ghost-button action-icon-button"
+                      type="button"
+                      aria-label="Generar reporte de asignación a tiendas"
+                      data-tooltip="Reporte de tiendas"
+                      onClick={() => generateSummaryReport("stores")}
+                      disabled={!deviceSummaryStats.total}
+                    >
+                      <span className="action-glyph action-glyph-report" aria-hidden="true" />
+                    </button>
                   </div>
-                ) : (
-                  <EmptyState
-                    title="Aún no hay dispositivos para resumir"
-                    text="Los tipos y sus cantidades aparecerán aquí cuando registres o importes el primer equipo. Los materiales no se incluyen en este resumen."
-                  />
-                )}
-              </section>
+                  <div className="store-assignment-summary">
+                    <article className="store-assignment-card assigned">
+                      <span>Con tienda asignada</span>
+                      <strong>{deviceSummaryStats.assignedToStore.toLocaleString("es-GT")}</strong>
+                      <small>
+                        {deviceSummaryStats.total
+                          ? Math.round((deviceSummaryStats.assignedToStore / deviceSummaryStats.total) * 100)
+                          : 0}% del total
+                      </small>
+                    </article>
+                    <article className="store-assignment-card unassigned">
+                      <span>Sin tienda asignada</span>
+                      <strong>{deviceSummaryStats.withoutStore.toLocaleString("es-GT")}</strong>
+                      <small>
+                        {deviceSummaryStats.total
+                          ? Math.round((deviceSummaryStats.withoutStore / deviceSummaryStats.total) * 100)
+                          : 0}% del total
+                      </small>
+                    </article>
+                    <div className="store-assignment-total">
+                      <span>Total general</span>
+                      <strong>{deviceSummaryStats.total.toLocaleString("es-GT")}</strong>
+                    </div>
+                  </div>
+                </section>
+              </div>
             </>
           ) : null}
 

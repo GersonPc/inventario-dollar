@@ -676,11 +676,21 @@ h3 {
 }
 
 .device-summary-panel {
-  overflow: visible;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.summary-panels-grid {
+  max-width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.65fr);
+  align-items: start;
+  gap: 16px;
 }
 
 .device-summary-table-wrap {
-  overflow: hidden;
+  max-width: 100%;
+  overflow-x: auto;
   border-radius: 0 0 16px 16px;
 }
 
@@ -726,13 +736,6 @@ h3 {
   letter-spacing: -0.035em;
 }
 
-.device-summary-type-row {
-  display: grid;
-  grid-template-columns: minmax(180px, 0.9fr) minmax(120px, 1.5fr);
-  align-items: center;
-  gap: 22px;
-}
-
 .device-summary-type-copy {
   min-width: 0;
 }
@@ -751,20 +754,6 @@ h3 {
   font-size: 11px;
 }
 
-.device-summary-progress {
-  height: 8px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: var(--paper);
-}
-
-.device-summary-progress span {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: var(--green-hover);
-}
-
 .device-summary-table tfoot th,
 .device-summary-table tfoot td {
   border-top: 2px solid var(--green-hover);
@@ -777,6 +766,80 @@ h3 {
 .device-summary-table tfoot td {
   font-size: 24px;
   letter-spacing: -0.04em;
+}
+
+.store-assignment-summary {
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+}
+
+.store-assignment-card {
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--paper);
+}
+
+.store-assignment-card.assigned {
+  border-color: rgba(143, 203, 138, 0.75);
+  background: var(--green-soft);
+}
+
+.store-assignment-card span,
+.store-assignment-card small {
+  display: block;
+}
+
+.store-assignment-card span {
+  color: var(--ink-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.store-assignment-card strong {
+  display: block;
+  margin-top: 9px;
+  font-size: 34px;
+  line-height: 1;
+  letter-spacing: -0.05em;
+}
+
+.store-assignment-card small {
+  margin-top: 6px;
+  color: var(--ink-muted);
+  font-size: 11px;
+}
+
+.store-assignment-total {
+  padding: 15px 18px;
+  border-radius: 12px;
+  background: var(--green);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-weight: 800;
+}
+
+.store-assignment-total strong {
+  font-size: 22px;
+  letter-spacing: -0.04em;
+}
+
+@media (max-width: 1120px) {
+  .summary-panels-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .store-assignment-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .store-assignment-total {
+    grid-column: 1 / -1;
+  }
 }
 
 .panel {
@@ -2139,13 +2202,16 @@ h3 {
     width: 92px;
   }
 
-  .device-summary-type-row {
-    grid-template-columns: 1fr;
-    gap: 9px;
-  }
-
   .device-summary-table tbody td:last-child {
     font-size: 19px;
+  }
+
+  .store-assignment-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .store-assignment-total {
+    grid-column: auto;
   }
 
   .field.full {

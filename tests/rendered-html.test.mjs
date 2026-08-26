@@ -201,10 +201,10 @@ test("exports filtered CSV records and supports a phone camera barcode scanner",
 });
 
 test("shows a device summary grouped by type with a general total", async () => {
-  const appSource = await readFile(
-    new URL("../app/InventoryApp.tsx", import.meta.url),
-    "utf8",
-  );
+  const [appSource, cssSource] = await Promise.all([
+    readFile(new URL("../app/InventoryApp.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
 
   assert.match(appSource, /"summary"/);
   assert.match(appSource, /label: "Resumen"/);
@@ -213,6 +213,15 @@ test("shows a device summary grouped by type with a general total", async () => 
   assert.match(appSource, /Dispositivos por tipo/);
   assert.match(appSource, /Total general/);
   assert.match(appSource, /Los materiales no se incluyen/);
+  assert.match(appSource, /Con tienda asignada/);
+  assert.match(appSource, /Sin tienda asignada/);
+  assert.match(appSource, /generateSummaryReport\("all"\)/);
+  assert.match(appSource, /generateSummaryReport\("types"\)/);
+  assert.match(appSource, /generateSummaryReport\("stores"\)/);
+  assert.match(appSource, /Generar reporte completo/);
+  assert.doesNotMatch(appSource, /device-summary-progress/);
+  assert.match(cssSource, /grid-template-columns: minmax\(0, 1\.35fr\) minmax\(280px, 0\.65fr\)/);
+  assert.match(cssSource, /@media \(max-width: 1120px\)/);
 });
 
 test("removes user administration from the application interface", async () => {
