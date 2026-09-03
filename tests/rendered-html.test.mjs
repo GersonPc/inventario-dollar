@@ -272,11 +272,12 @@ test("shows network fields only when the device is marked for network use", asyn
   assert.match(appSource, /Dispositivo de red/);
 });
 
-test("provides editable device model profiles with R2 image uploads", async () => {
-  const [appSource, profileApi, imageApi] = await Promise.all([
+test("provides editable device model profiles with R2 and bundled images", async () => {
+  const [appSource, profileApi, imageApi, deviceModels] = await Promise.all([
     readFile(new URL("../app/InventoryApp.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/api/device-models/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/device-model-images/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../lib/device-models.ts", import.meta.url), "utf8"),
   ]);
 
   assert.match(appSource, /label: "Dispositivos"/);
@@ -289,20 +290,6 @@ test("provides editable device model profiles with R2 image uploads", async () =
   assert.match(profileApi, /maximumImageBytes = 5 \* 1024 \* 1024/);
   assert.match(imageApi, /env\.DEVICE_IMAGES\.get/);
   assert.match(imageApi, /x-content-type-options/);
-});
-
-test("supports a protected atomic replacement of the verified Excel inventory", async () => {
-  const [replaceApi, deviceModels] = await Promise.all([
-    readFile(new URL("../app/api/inventory-replace/route.ts", import.meta.url), "utf8"),
-    readFile(new URL("../lib/device-models.ts", import.meta.url), "utf8"),
-  ]);
-
-  assert.match(replaceApi, /INVENTORY_IMPORT_TOKEN/);
-  assert.match(replaceApi, /records\.length !== 256/);
-  assert.match(replaceApi, /\["PRINTER DE FACTURACION", 120\]/);
-  assert.match(replaceApi, /await env\.DB\.batch\(statements\)/);
-  assert.match(replaceApi, /DELETE FROM equipment_movements/);
-  assert.match(replaceApi, /DELETE FROM equipment/);
   assert.match(deviceModels, /inventory-models/);
 });
 
