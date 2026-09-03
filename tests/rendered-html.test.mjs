@@ -291,6 +291,21 @@ test("provides editable device model profiles with R2 image uploads", async () =
   assert.match(imageApi, /x-content-type-options/);
 });
 
+test("supports a protected atomic replacement of the verified Excel inventory", async () => {
+  const [replaceApi, deviceModels] = await Promise.all([
+    readFile(new URL("../app/api/inventory-replace/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../lib/device-models.ts", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(replaceApi, /INVENTORY_IMPORT_TOKEN/);
+  assert.match(replaceApi, /records\.length !== 256/);
+  assert.match(replaceApi, /\["PRINTER DE FACTURACION", 120\]/);
+  assert.match(replaceApi, /await env\.DB\.batch\(statements\)/);
+  assert.match(replaceApi, /DELETE FROM equipment_movements/);
+  assert.match(replaceApi, /DELETE FROM equipment/);
+  assert.match(deviceModels, /inventory-models/);
+});
+
 test("does not write the shared public identity into user foreign keys", async () => {
   const apiSource = await readFile(
     new URL("../app/api/inventory/route.ts", import.meta.url),

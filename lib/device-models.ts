@@ -12,5 +12,8 @@ export function deviceModelCatalogKey(deviceType: string, model: string): string
 }
 
 export function deviceModelImageUrl(imageKey: string): string {
+  if (/^\/inventory-models\/[a-z0-9-]+\.png$/.test(imageKey)) {
+    return imageKey;
+  }
   return `/api/device-model-images?key=${encodeURIComponent(imageKey)}`;
 }
