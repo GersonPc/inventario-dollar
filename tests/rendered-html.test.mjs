@@ -201,9 +201,10 @@ test("exports filtered CSV records and supports a phone camera barcode scanner",
 });
 
 test("shows a device summary grouped by type with a general total", async () => {
-  const [appSource, cssSource] = await Promise.all([
+  const [appSource, cssSource, packageSource] = await Promise.all([
     readFile(new URL("../app/InventoryApp.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+    readFile(new URL("../package.json", import.meta.url), "utf8"),
   ]);
 
   assert.match(appSource, /"summary"/);
@@ -219,6 +220,12 @@ test("shows a device summary grouped by type with a general total", async () => 
   assert.match(appSource, /generateSummaryReport\("types"\)/);
   assert.match(appSource, /generateSummaryReport\("stores"\)/);
   assert.match(appSource, /Generar reporte completo/);
+  assert.match(appSource, /exportDeviceTypeExcel/);
+  assert.match(appSource, /write-excel-file\/browser/);
+  assert.match(appSource, /Exportar a Excel/);
+  assert.match(appSource, /reporte-dispositivos-por-tipo/);
+  assert.match(cssSource, /action-glyph-excel/);
+  assert.match(packageSource, /"write-excel-file"/);
   assert.doesNotMatch(appSource, /device-summary-progress/);
   assert.match(cssSource, /grid-template-columns: minmax\(0, 1\.35fr\) minmax\(280px, 0\.65fr\)/);
   assert.match(cssSource, /@media \(max-width: 1120px\)/);

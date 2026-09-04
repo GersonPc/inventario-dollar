@@ -984,6 +984,41 @@ h3 {
   border-radius: 0 0 3px 3px;
 }
 
+.action-glyph-excel {
+  width: 17px;
+  height: 20px;
+  border: 1.7px solid currentColor;
+  border-radius: 2px;
+}
+
+.action-glyph-excel::before {
+  content: "X";
+  top: 5px;
+  left: -5px;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  background: var(--green);
+  color: var(--ink);
+  display: grid;
+  place-items: center;
+  font-size: 8px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.action-glyph-excel::after {
+  top: 5px;
+  right: 2px;
+  width: 6px;
+  height: 10px;
+  background:
+    linear-gradient(currentColor, currentColor) 0 33% / 100% 1px no-repeat,
+    linear-gradient(currentColor, currentColor) 0 66% / 100% 1px no-repeat,
+    linear-gradient(currentColor, currentColor) 50% 0 / 1px 100% no-repeat;
+  opacity: 0.7;
+}
+
 .action-glyph-refresh {
   width: 19px;
   height: 19px;
