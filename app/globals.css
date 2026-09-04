@@ -872,6 +872,18 @@ h3 {
   gap: 4px;
 }
 
+.summary-report-actions {
+  gap: 8px;
+}
+
+.action-label-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  white-space: nowrap;
+}
+
 .action-icon-button {
   position: relative;
   width: 42px;
@@ -2239,6 +2251,22 @@ h3 {
 
   .device-summary-table tbody td:last-child {
     font-size: 19px;
+  }
+
+  .device-summary-panel .panel-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .summary-report-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .summary-report-actions .action-label-button {
+    width: 100%;
+    padding-inline: 10px;
   }
 
   .store-assignment-summary {

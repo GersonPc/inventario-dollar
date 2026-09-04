@@ -222,9 +222,12 @@ test("shows a device summary grouped by type with a general total", async () => 
   assert.match(appSource, /Generar reporte completo/);
   assert.match(appSource, /exportDeviceTypeExcel/);
   assert.match(appSource, /write-excel-file\/browser/);
+  assert.match(appSource, /primary-button action-label-button/);
+  assert.match(appSource, />Generar reporte<\/span>/);
   assert.match(appSource, /Exportar a Excel/);
   assert.match(appSource, /reporte-dispositivos-por-tipo/);
   assert.match(cssSource, /action-glyph-excel/);
+  assert.match(cssSource, /summary-report-actions/);
   assert.match(packageSource, /"write-excel-file"/);
   assert.doesNotMatch(appSource, /device-summary-progress/);
   assert.match(cssSource, /grid-template-columns: minmax\(0, 1\.35fr\) minmax\(280px, 0\.65fr\)/);

@@ -1901,26 +1901,26 @@ export function InventoryApp() {
                         {deviceTypeSummary.length} {deviceTypeSummary.length === 1 ? "tipo registrado" : "tipos registrados"}
                       </div>
                     </div>
-                    <div className="panel-actions">
+                    <div className="panel-actions summary-report-actions">
                       <button
-                        className="ghost-button action-icon-button"
+                        className="primary-button action-label-button"
                         type="button"
                         aria-label="Generar reporte por tipo de equipo"
-                        data-tooltip="Reporte por tipo"
                         onClick={() => generateSummaryReport("types")}
                         disabled={!deviceSummaryStats.total}
                       >
                         <span className="action-glyph action-glyph-report" aria-hidden="true" />
+                        <span>Generar reporte</span>
                       </button>
                       <button
-                        className="ghost-button action-icon-button"
+                        className="primary-button action-label-button"
                         type="button"
                         aria-label="Exportar reporte por tipo a Excel"
-                        data-tooltip="Exportar a Excel"
                         onClick={() => void exportDeviceTypeExcel()}
                         disabled={!deviceSummaryStats.total}
                       >
                         <span className="action-glyph action-glyph-excel" aria-hidden="true" />
+                        <span>Exportar a Excel</span>
                       </button>
                     </div>
                   </div>
