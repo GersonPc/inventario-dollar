@@ -418,16 +418,6 @@ export function InventoryApp() {
     });
   }, [conditionFilter, data?.equipment, deliveryFilter, kindFilter, query, typeFilter]);
 
-  const stats = useMemo(() => {
-    const items = data?.equipment ?? [];
-    return {
-      total: items.reduce((total, item) => total + item.quantity, 0),
-      warehouse: items.filter((item) => !item.delivered).reduce((total, item) => total + item.quantity, 0),
-      delivered: items.filter((item) => item.delivered).reduce((total, item) => total + item.quantity, 0),
-      failing: items.filter((item) => item.condition === "not_working").length,
-    };
-  }, [data?.equipment]);
-
   const deviceTypeSummary = useMemo(() => {
     const groups = new Map<
       string,
@@ -1769,13 +1759,6 @@ export function InventoryApp() {
                     <span>El equipo se abre automáticamente al recibir el código.</span>
                   </div>
                 </div>
-              </section>
-
-              <section className="stats-grid" aria-label="Resumen del inventario">
-                <Stat label="Unidades registradas" value={stats.total} foot="Equipos y materiales" />
-                <Stat label="En bodega" value={stats.warehouse} foot="Unidades disponibles o pendientes" />
-                <Stat label="Entregados" value={stats.delivered} foot="Unidades asignadas a tienda" />
-                <Stat label="No funcionan" value={stats.failing} foot="Requieren seguimiento" />
               </section>
 
               <section className="panel">
