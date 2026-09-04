@@ -277,7 +277,7 @@ async function postAction(body: Record<string, unknown>, writeToken = "") {
 
 export function InventoryApp() {
   const [data, setData] = useState<InventoryResponse | null>(null);
-  const [view, setView] = useState<View>("inventory");
+  const [view, setView] = useState<View>("summary");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");

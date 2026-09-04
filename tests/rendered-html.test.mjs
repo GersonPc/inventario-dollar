@@ -220,6 +220,7 @@ test("shows a device summary grouped by type with a general total", async () => 
   assert.match(appSource, /generateSummaryReport\("types"\)/);
   assert.match(appSource, /generateSummaryReport\("stores"\)/);
   assert.match(appSource, /Generar reporte completo/);
+  assert.match(appSource, /useState<View>\("summary"\)/);
   assert.match(appSource, /exportDeviceTypeExcel/);
   assert.match(appSource, /write-excel-file\/browser/);
   assert.match(appSource, /primary-button action-label-button/);
