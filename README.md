@@ -62,13 +62,31 @@ Requisitos:
 Instala las dependencias y ejecuta la aplicación:
 
 ```bash
-npm install
+npm ci
+npm run db:migrate:local
 npm run dev
 ```
 
 La consulta no requiere inicio de sesión. Para probar modificaciones en local,
 configura `INVENTORY_WRITE_PASSWORD` en `.dev.vars`; la clave debe tener al
 menos 12 caracteres.
+
+En este Mac se instaló Node.js 24.19.0 y npm en `.tools/node` (ignorado por
+Git). Antes de usar los comandos anteriores en una Terminal nueva:
+
+```bash
+cd "/Users/gersonpc/Documents/Inventario Dollar"
+source ./dev-env.sh
+```
+
+En otros equipos instala la versión indicada en `.nvmrc` con tu gestor de
+Node.js. `.dev.vars` contiene las claves exclusivas de desarrollo; consulta
+`INVENTORY_WRITE_PASSWORD` en ese archivo para habilitar la edición local.
+Si aún no existe, copia `.env.example` a `.dev.vars` y reemplaza ambos secretos.
+
+`npm run db:migrate:local` prepara la base usada por Vite mediante
+`wrangler.local.json`. D1 y R2 locales se guardan en `.wrangler/`; no requieren
+una sesión de Cloudflare. La base empieza sin inventario de producción.
 
 Antes de integrar cambios:
 

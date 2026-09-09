@@ -224,7 +224,7 @@ la edición permanece bloqueada hasta definir `INVENTORY_WRITE_PASSWORD` en
 4. Prueba la migración localmente:
 
    ```bash
-   npx wrangler d1 migrations apply inventario-dollar-db --local --config wrangler.jsonc
+   npm run db:migrate:local
    ```
 
 5. Ejecuta pruebas.

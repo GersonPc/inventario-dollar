@@ -52,7 +52,11 @@ export default defineConfig(async () => {
       sites(),
       cloudflare({
         viteEnvironment: { name: "rsc", childEnvironments: ["ssr"] },
-        config: localBindingConfig,
+        config(config) {
+          // Replace binding arrays; merging appends production bindings with
+          // the same names and selects a different local SQLite database.
+          Object.assign(config, localBindingConfig);
+        },
       }),
     ],
   };

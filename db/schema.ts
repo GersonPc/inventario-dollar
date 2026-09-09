@@ -140,3 +140,17 @@ export const equipmentMovements = sqliteTable(
     index("idx_movements_actor").on(table.actorId),
   ],
 );
+
+// These tables belong to the application; the SharePoint workbook is never edited.
+export const sharePointLinks = sqliteTable("sharepoint_links", {
+  item: text("item").primaryKey(),
+  equipmentId: integer("equipment_id").references(() => equipment.id, { onDelete: "set null" }),
+  snapshot: text("snapshot").notNull(),
+}, (table) => [uniqueIndex("idx_sharepoint_equipment_unique").on(table.equipmentId)]);
+
+export const sharePointPreviews = sqliteTable("sharepoint_previews", {
+  id: text("id").primaryKey(),
+  payload: text("payload").notNull(),
+  expiresAt: integer("expires_at").notNull(),
+  consumed: integer("consumed").notNull().default(0),
+});

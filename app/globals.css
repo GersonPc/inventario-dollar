@@ -872,6 +872,35 @@ h3 {
   gap: 4px;
 }
 
+.sharepoint-import {
+  margin-bottom: 24px;
+}
+
+.sharepoint-import > p,
+.sharepoint-import > h3,
+.sharepoint-import > details {
+  margin: 16px 24px;
+}
+
+.sharepoint-rows {
+  max-height: 480px;
+  overflow: auto;
+}
+
+.sharepoint-rows td {
+  white-space: normal;
+  min-width: 180px;
+}
+
+.sharepoint-rows select {
+  max-width: 320px;
+}
+
+.sharepoint-actions {
+  padding: 24px;
+  flex-wrap: wrap;
+}
+
 .summary-report-actions {
   gap: 8px;
 }
