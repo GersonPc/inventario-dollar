@@ -1,4 +1,4 @@
-import { planSharePointSync, type LocalRow, type PlanRow, type SourceLink, type SourceRow, type SyncChoice } from "./sharepoint-plan";
+import { normalizedSource, planSharePointSync, type LocalRow, type PlanRow, type SourceLink, type SourceRow, type SyncChoice } from "./sharepoint-plan";
 
 type StoredLocal = LocalRow & { rawStoreReference: string | null };
 export type SyncPreview = {
@@ -8,9 +8,67 @@ export type SyncPreview = {
   locals: StoredLocal[];
   links: SourceLink[];
   plan: PlanRow[];
+  summary: SourceSummary[];
+  summaryTotal: number;
 };
 
-export async function prepareSync(db: D1Database, rows: SourceRow[], version: string, choices: Record<string, SyncChoice>, origin: SyncPreview["origin"] = "sharepoint"): Promise<SyncPreview> {
+export type SourceSummary = {
+  normalizedType: string;
+  deviceType: string;
+  quantity: number;
+  warehouse: number;
+  delivered: number;
+  assignedToStore: number;
+};
+
+export const officialSummaryTypeKeys = new Set([
+  "discos portables",
+  "petty cash",
+  "pin pad",
+  "ups",
+]);
+
+export function summarizeSourceRows(rows: SourceRow[], excelSummary?: { type: string; detail: number; summary: number | null }[]): SourceSummary[] {
+  const detail = new Map<string, SourceSummary>();
+  for (const row of rows) {
+    const normalizedType = normalizedSource(row.deviceType);
+    if (!officialSummaryTypeKeys.has(normalizedType)) continue;
+    const current = detail.get(normalizedType) ?? {
+      normalizedType,
+      deviceType: row.deviceType,
+      quantity: 0,
+      warehouse: 0,
+      delivered: 0,
+      assignedToStore: 0,
+    };
+    current.quantity += 1;
+    if (row.delivered) current.delivered += 1;
+    else current.warehouse += 1;
+    if (row.storeReference) current.assignedToStore += 1;
+    detail.set(normalizedType, current);
+  }
+  for (const group of excelSummary ?? []) {
+    const normalizedType = normalizedSource(group.type);
+    if (!officialSummaryTypeKeys.has(normalizedType)) continue;
+    const current = detail.get(normalizedType) ?? {
+      normalizedType,
+      deviceType: group.type,
+      quantity: 0,
+      warehouse: 0,
+      delivered: 0,
+      assignedToStore: 0,
+    };
+    if (group.summary !== null) {
+      current.quantity = group.summary;
+      current.warehouse = Math.max(0, group.summary - current.delivered);
+    }
+    current.deviceType = group.type;
+    detail.set(normalizedType, current);
+  }
+  return [...detail.values()].sort((a, b) => a.deviceType.localeCompare(b.deviceType, "es"));
+}
+
+export async function prepareSync(db: D1Database, rows: SourceRow[], version: string, choices: Record<string, SyncChoice>, origin: SyncPreview["origin"] = "sharepoint", excelSummary?: { type: string; detail: number; summary: number | null }[]): Promise<SyncPreview> {
   const [localResult, linkResult] = await Promise.all([
     db.prepare(`SELECT e.id, e.barcode, e.model, e.device_type AS deviceType, e.item_kind AS itemKind,
       e.condition, e.received_at AS receivedAt, e.delivered, e.delivered_at AS deliveredAt,
@@ -21,7 +79,8 @@ export async function prepareSync(db: D1Database, rows: SourceRow[], version: st
   ]);
   const locals = localResult.results.map((row) => ({ ...row, delivered: Boolean(row.delivered) }));
   const links = linkResult.results;
-  return { rows, version, origin, locals, links, plan: planSharePointSync(rows, locals, links, choices) };
+  const summary = summarizeSourceRows(rows, excelSummary);
+  return { rows, version, origin, locals, links, plan: planSharePointSync(rows, locals, links, choices), summary, summaryTotal: summary.reduce((total, row) => total + row.quantity, 0) };
 }
 
 /** A stale guard deliberately evaluates invalid JSON, raising a SQLite error.
@@ -103,8 +162,26 @@ export async function applySync(db: D1Database, id: string, preview: SyncPreview
       }
     }
   }
+  if (!preview.summary.length || preview.summary.some((row) => !row.normalizedType || !Number.isInteger(row.quantity) || row.quantity < 0)) {
+    throw new Error("El RESUMEN del Excel no contiene cantidades válidas.");
+  }
+  statements.push(db.prepare("DELETE FROM sharepoint_inventory_summary"));
+  for (const row of preview.summary) {
+    statements.push(db.prepare(`INSERT INTO sharepoint_inventory_summary
+      (normalized_type, device_type, quantity, warehouse, delivered, assigned_to_store, source_version, synchronized_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).bind(
+      row.normalizedType, row.deviceType, row.quantity, row.warehouse, row.delivered,
+      row.assignedToStore, preview.version, now,
+    ));
+  }
+  statements.push(db.prepare(`INSERT INTO sharepoint_sync_state
+    (id, source_version, row_count, summary_total, synchronized_at) VALUES (1, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET source_version = excluded.source_version, row_count = excluded.row_count,
+      summary_total = excluded.summary_total, synchronized_at = excluded.synchronized_at`).bind(
+    preview.version, preview.rows.length, preview.summaryTotal, now,
+  ));
   statements.push(db.prepare("UPDATE sharepoint_previews SET consumed = 1 WHERE id = ?").bind(id));
   try { await db.batch(statements); }
   catch { throw new Error("Los datos o vínculos cambiaron durante la revisión. No se aplicó esta importación; genera otra vista previa."); }
-  return { created, updated, linked, conflicts: preview.plan.filter((row) => row.action === "conflict").length };
+  return { created, updated, linked, conflicts: preview.plan.filter((row) => row.action === "conflict").length, summaryTotal: preview.summaryTotal };
 }

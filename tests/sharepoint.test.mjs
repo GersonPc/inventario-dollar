@@ -9,7 +9,7 @@ const temporary = new URL(`../.wrangler/sharepoint-test-${process.pid}.mjs`, imp
 await mkdir(new URL("../.wrangler/", import.meta.url), { recursive: true });
 await build({ stdin: { contents: 'export * from "./lib/sharepoint-plan.ts"; export * from "./lib/sharepoint-workbook.ts"; export * from "./lib/sharepoint-source.ts"; export * from "./lib/sharepoint-sync.ts";', resolveDir: process.cwd() }, bundle: true, platform: "node", format: "esm", packages: "external", outfile: fileURLToPath(temporary) });
 after(() => rm(temporary));
-const { planSharePointSync, parseSourceRows, downloadSharePointWorkbook, readBounded, sharePointSource, prepareSync, applySync } = await import(temporary.href);
+const { planSharePointSync, parseSourceRows, downloadSharePointWorkbook, readBounded, sharePointSource, prepareSync, applySync, summarizeSourceRows } = await import(temporary.href);
 
 const source = { item: "1", row: 4, serial: "UPS-001", reliableSerial: true, model: "UPS 850", deviceType: "ups", condition: "not_working", receivedAt: "2026-08-05", delivered: false, storeReference: null };
 const local = { id: 1, barcode: source.serial, itemKind: "equipment", model: source.model, deviceType: "ups", condition: source.condition, receivedAt: source.receivedAt, delivered: false, storeReference: null, rawStoreReference: null, storeId: null, deliveredAt: null, updatedAt: "2026-09-01T00:00:00.000Z" };
@@ -45,6 +45,22 @@ test("parser handles split headers, N/P, numeric serials, and refuses duplicate 
   assert.throws(() => parseSourceRows([headers, [...row.slice(0, 7), "maybe"]]), /SI\/NO/);
 });
 
+test("the official summary uses the RESUMEN worksheet quantities", () => {
+  const rows = [
+    { ...source, item: "1", delivered: false },
+    { ...source, item: "2", delivered: true, storeReference: "2302" },
+    { ...source, item: "3", deviceType: "PANTALLA NCR", delivered: false },
+  ];
+  const summary = summarizeSourceRows(rows, [
+    { type: "ups", detail: 2, summary: 3 },
+    { type: "PANTALLA NCR", detail: 1, summary: 1 },
+  ]);
+  assert.deepEqual(summary, [{
+    normalizedType: "ups", deviceType: "ups", quantity: 3,
+    warehouse: 2, delivered: 1, assignedToStore: 1,
+  }]);
+});
+
 const config = { SHAREPOINT_CLIENT_ID: "client", SHAREPOINT_CLIENT_SECRET: "test-secret", SHAREPOINT_DRIVE_ID: "drive", SHAREPOINT_ITEM_ID: "item" };
 test("Graph only reads the authorized file, never sends its token to the download URL", async () => {
   const calls = [];
@@ -75,7 +91,9 @@ function database() {
     CREATE TABLE equipment(id INTEGER PRIMARY KEY, barcode TEXT UNIQUE, model TEXT, device_type TEXT, item_kind TEXT, quantity INTEGER, condition TEXT, received_at TEXT, delivered INTEGER, delivered_at TEXT, store_id INTEGER, store_reference TEXT, notes TEXT, updated_at TEXT);
     CREATE TABLE equipment_movements(id INTEGER PRIMARY KEY, equipment_id INTEGER, action TEXT, details TEXT);
     CREATE TABLE sharepoint_links(item TEXT PRIMARY KEY, equipment_id INTEGER UNIQUE REFERENCES equipment(id) ON DELETE SET NULL, snapshot TEXT NOT NULL);
-    CREATE TABLE sharepoint_previews(id TEXT PRIMARY KEY, payload TEXT NOT NULL, expires_at INTEGER NOT NULL, consumed INTEGER NOT NULL DEFAULT 0);`);
+    CREATE TABLE sharepoint_previews(id TEXT PRIMARY KEY, payload TEXT NOT NULL, expires_at INTEGER NOT NULL, consumed INTEGER NOT NULL DEFAULT 0);
+    CREATE TABLE sharepoint_inventory_summary(normalized_type TEXT PRIMARY KEY, device_type TEXT NOT NULL, quantity INTEGER NOT NULL, warehouse INTEGER NOT NULL, delivered INTEGER NOT NULL, assigned_to_store INTEGER NOT NULL, source_version TEXT NOT NULL, synchronized_at TEXT NOT NULL);
+    CREATE TABLE sharepoint_sync_state(id INTEGER PRIMARY KEY, source_version TEXT NOT NULL, row_count INTEGER NOT NULL, summary_total INTEGER NOT NULL, synchronized_at TEXT NOT NULL);`);
   sql.prepare("INSERT INTO equipment VALUES(1, ?, ?, 'ups', 'equipment', 1, 'not_working', ?, 0, NULL, NULL, NULL, 'local notes', ?)")
     .run(local.barcode, local.model, local.receivedAt, local.updatedAt);
   sql.prepare("INSERT INTO sharepoint_links VALUES(?, ?, ?)").run(link.item, link.equipmentId, link.snapshot);
@@ -129,5 +147,22 @@ test("explicit creation generates a unique local ID; missing source rows do not 
   assert.equal((await applySync(db, "preview", preview)).created, 1);
   assert.equal(sql.prepare("SELECT COUNT(*) AS n FROM equipment").get().n, 2);
   assert.equal(sql.prepare("SELECT barcode FROM equipment WHERE id = 2").get().barcode, "SP-7E7310D7-2");
+  sql.close();
+});
+
+test("applying a preview replaces the official summary without deleting app inventory", async () => {
+  const { sql, db, save } = database();
+  sql.prepare("INSERT INTO sharepoint_inventory_summary VALUES(?, ?, ?, ?, ?, ?, ?, ?)")
+    .run("old", "OLD", 99, 99, 0, 0, "v1", "2026-09-01T00:00:00.000Z");
+  const excelSummary = [{ type: "ups", detail: 1, summary: 57 }];
+  const preview = await prepareSync(db, [source], "v2", {}, "file", excelSummary);
+  save("summary-preview", preview);
+  const result = await applySync(db, "summary-preview", preview);
+  assert.equal(result.summaryTotal, 57);
+  assert.deepEqual(sql.prepare("SELECT device_type, quantity, warehouse, delivered FROM sharepoint_inventory_summary").all().map((row) => ({ ...row })), [
+    { device_type: "ups", quantity: 57, warehouse: 57, delivered: 0 },
+  ]);
+  assert.equal(sql.prepare("SELECT COUNT(*) AS n FROM equipment").get().n, 1);
+  assert.equal(sql.prepare("SELECT summary_total FROM sharepoint_sync_state WHERE id = 1").get().summary_total, 57);
   sql.close();
 });

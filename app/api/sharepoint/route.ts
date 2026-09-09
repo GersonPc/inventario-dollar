@@ -3,8 +3,8 @@ import { getWriteAccessFailure } from "@/lib/write-access";
 import { getInventoryUser, canWrite } from "@/lib/inventory-auth";
 import { downloadSharePointWorkbook, readBounded, sharePointConfigured, sharePointSource } from "@/lib/sharepoint-source";
 import { readSourceWorkbook } from "@/lib/sharepoint-workbook";
-import { applySync, prepareSync, type SyncPreview } from "@/lib/sharepoint-sync";
-import type { SyncChoice } from "@/lib/sharepoint-plan";
+import { applySync, officialSummaryTypeKeys, prepareSync, type SyncPreview } from "@/lib/sharepoint-sync";
+import { normalizedSource, type SyncChoice } from "@/lib/sharepoint-plan";
 
 const json = (data: unknown, status = 200) => Response.json(data, { status, headers: { "cache-control": "no-store" } });
 
@@ -46,7 +46,10 @@ export async function POST(request: Request) {
       version: Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new Uint8Array(uploadedBytes)))).map((b) => b.toString(16).padStart(2, "0")).join(""),
     } : await downloadSharePointWorkbook(env);
     const parsed = await readSourceWorkbook(workbook.bytes);
-    const preview = await prepareSync(env.DB, parsed.rows, workbook.version, choices, uploadedBytes ? "file" : "sharepoint");
+    const officialSummary = parsed.summary.filter((group) => officialSummaryTypeKeys.has(normalizedSource(group.type)));
+    const officialSummaryTotal = officialSummary.reduce((total, group) => total + (group.summary ?? group.detail), 0);
+    const officialSummaryMatches = officialSummary.every((group) => group.summary === group.detail);
+    const preview = await prepareSync(env.DB, parsed.rows, workbook.version, choices, uploadedBytes ? "file" : "sharepoint", officialSummary);
     const previewId = crypto.randomUUID();
     const expiresAt = Date.now() + 10 * 60_000;
     await env.DB.batch([
@@ -56,8 +59,8 @@ export async function POST(request: Request) {
     ]);
     const sourceItems = new Set(parsed.rows.map((row) => row.item));
     return json({
-      previewId, expiresAt, origin: preview.origin, plan: preview.plan, summary: parsed.summary, summaryTotal: parsed.summaryTotal,
-      summaryMatches: parsed.summaryMatches, warnings: parsed.warnings,
+      previewId, expiresAt, origin: preview.origin, plan: preview.plan, summary: officialSummary, summaryTotal: officialSummaryTotal,
+      summaryMatches: officialSummaryMatches, warnings: parsed.warnings,
       absent: preview.links.filter((link) => !sourceItems.has(link.item)).map((link) => link.item),
       equipment: preview.locals.filter((row) => row.itemKind === "equipment").map(({ id, barcode, model, deviceType }) => ({ id, barcode, model, deviceType })),
     });

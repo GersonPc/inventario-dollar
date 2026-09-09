@@ -214,7 +214,7 @@ test("shows a device summary grouped by type with a general total", async () => 
   assert.match(appSource, /current\.units \+= item\.quantity/);
   assert.match(appSource, /Dispositivos por tipo/);
   assert.match(appSource, /Total general/);
-  assert.match(appSource, /Los materiales no se incluyen/);
+  assert.match(appSource, /Fuente oficial: RESUMEN del Excel/);
   assert.match(appSource, /Con tienda asignada/);
   assert.match(appSource, /Sin tienda asignada/);
   assert.match(appSource, /generateSummaryReport\("all"\)/);

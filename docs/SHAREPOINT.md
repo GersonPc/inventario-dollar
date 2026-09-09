@@ -14,6 +14,10 @@ libro. Los datos modificados en la aplicación permanecen en D1.
    numéricas o científicas nunca se usan para vincular automáticamente.
 6. Revisar nuevamente los vínculos y aplicar los cambios a la aplicación.
 
+Al aplicar, la aplicación reemplaza su resumen oficial con las cantidades del
+apartado **RESUMEN** del Excel. Esto también se puede confirmar cuando no hay
+equipos por crear o actualizar.
+
 Elegir **Crear equipo nuevo** solamente si el artículo no está ya registrado.
 La primera vinculación conserva los valores actuales de la aplicación. Las
 siguientes importaciones comparan Excel anterior, Excel nuevo y valores locales.
@@ -77,17 +81,24 @@ cambios**: todavía no existe una tarea programada en producción.
 
 ## Resumen y cambios locales
 
-La aplicación calcula su resumen desde D1. El panel de importación compara el
-detalle del Excel con su RESUMEN, que podría estar desactualizado. No fuerza los
-totales de D1 a coincidir cuando hay equipos locales adicionales, vínculos sin
-resolver, registros eliminados del Excel o conflictos pendientes. Muestra la
-diferencia en lugar de borrar o duplicar equipos para cuadrar las cantidades.
+El apartado **RESUMEN** del Excel es la fuente oficial del resumen de la
+aplicación. La vista presenta DISCOS PORTABLES, Petty Cash, PIN PAD y ups;
+las demás categorías del archivo quedan fuera de este apartado. D1 conserva
+una copia de esas cantidades para mostrarlas sin depender de que SharePoint
+esté abierto. Los equipos registrados solamente
+en la aplicación permanecen disponibles en Inventario, pero no alteran el
+resumen oficial mientras no estén incorporados en el Excel.
+
+El panel también compara el detalle del Excel con su RESUMEN. Si ambas hojas no
+coinciden, muestra la diferencia y conserva en la aplicación las cantidades que
+el usuario ve en RESUMEN. Nunca edita el libro.
 
 ## Despliegue y verificación
 
-Aplicar la migración nueva `0004_motionless_wendell_rand.sql` junto con el código.
-No aplicar cambios a la base de producción para probar. La migración crea
-`sharepoint_links` y `sharepoint_previews`; no altera los artículos existentes.
+Aplicar las migraciones `0004_motionless_wendell_rand.sql` y
+`0005_curved_talon.sql` junto con el código. La segunda crea la copia oficial del
+resumen y la inicializa con las 202 unidades verificadas para esas cuatro categorías;
+no altera los artículos existentes.
 
 Ejecutar `node --experimental-strip-types --test tests/sharepoint.test.mjs`,
 `npm run lint` y `npm test`. Las pruebas usan SQLite en memoria y Microsoft

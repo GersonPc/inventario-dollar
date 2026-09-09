@@ -12,6 +12,8 @@ import {
   deviceModelProfiles,
   equipment,
   equipmentMovements,
+  sharePointInventorySummary,
+  sharePointSyncState,
   stores,
 } from "@/db/schema";
 import {
@@ -266,6 +268,25 @@ export async function GET() {
       .select()
       .from(deviceModelProfiles)
       .orderBy(asc(deviceModelProfiles.deviceType), asc(deviceModelProfiles.model));
+    const sourceSummaryRows = await db
+      .select({
+        deviceType: sharePointInventorySummary.deviceType,
+        units: sharePointInventorySummary.quantity,
+        warehouse: sharePointInventorySummary.warehouse,
+        delivered: sharePointInventorySummary.delivered,
+        assignedToStore: sharePointInventorySummary.assignedToStore,
+      })
+      .from(sharePointInventorySummary)
+      .orderBy(asc(sharePointInventorySummary.deviceType));
+    const [sourceState] = await db
+      .select({
+        rowCount: sharePointSyncState.rowCount,
+        summaryTotal: sharePointSyncState.summaryTotal,
+        synchronizedAt: sharePointSyncState.synchronizedAt,
+      })
+      .from(sharePointSyncState)
+      .where(eq(sharePointSyncState.id, 1))
+      .limit(1);
     return Response.json({
       currentUser: {
         id: currentUser.id,
@@ -276,6 +297,8 @@ export async function GET() {
       equipment: equipmentRows,
       stores: storeRows,
       deviceModels: deviceModelRows,
+      sourceSummary: sourceSummaryRows,
+      sourceState: sourceState ?? null,
       users: [],
     });
   } catch (error) {

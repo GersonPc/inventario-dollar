@@ -154,3 +154,24 @@ export const sharePointPreviews = sqliteTable("sharepoint_previews", {
   expiresAt: integer("expires_at").notNull(),
   consumed: integer("consumed").notNull().default(0),
 });
+
+// Snapshot of the RESUMEN worksheet. This is the authoritative summary shown
+// by the application; app-only records remain available in the inventory.
+export const sharePointInventorySummary = sqliteTable("sharepoint_inventory_summary", {
+  normalizedType: text("normalized_type").primaryKey(),
+  deviceType: text("device_type").notNull(),
+  quantity: integer("quantity").notNull(),
+  warehouse: integer("warehouse").notNull(),
+  delivered: integer("delivered").notNull(),
+  assignedToStore: integer("assigned_to_store").notNull(),
+  sourceVersion: text("source_version").notNull(),
+  synchronizedAt: text("synchronized_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const sharePointSyncState = sqliteTable("sharepoint_sync_state", {
+  id: integer("id").primaryKey(),
+  sourceVersion: text("source_version").notNull(),
+  rowCount: integer("row_count").notNull(),
+  summaryTotal: integer("summary_total").notNull(),
+  synchronizedAt: text("synchronized_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});

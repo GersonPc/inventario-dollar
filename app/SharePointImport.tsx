@@ -54,11 +54,11 @@ export default function SharePointImport({ requestAccess, onImported }: {
         },
         body: upload ? selectedFile : JSON.stringify({ action, choices: selectedChoices, previewId: preview?.previewId }),
       });
-      const payload = await response.json() as Preview & { error?: string; created: number; updated: number; linked: number; conflicts: number };
+      const payload = await response.json() as Preview & { error?: string; created: number; updated: number; linked: number; conflicts: number; summaryTotal: number };
       if (!response.ok) throw new Error(payload.error ?? "No se pudo leer el inventario de SharePoint.");
       if (action === "preview") { setPreview(payload); setDirty(false); }
       else {
-        setMessage(`${payload.created} nuevos · ${payload.updated} actualizados · ${payload.linked} vinculados · ${payload.conflicts} pendientes de revisión.`);
+        setMessage(`Resumen oficial actualizado a ${payload.summaryTotal} unidades · ${payload.created} nuevos · ${payload.updated} actualizados · ${payload.linked} vinculados · ${payload.conflicts} pendientes de revisión.`);
         setPreview(null); setChoices({}); setDirty(false); await onImported();
       }
     } catch (reason) { setError(reason instanceof Error ? reason.message : "No se pudo completar la importación."); }
@@ -68,12 +68,12 @@ export default function SharePointImport({ requestAccess, onImported }: {
   const pending = preview?.plan.filter((row) => row.action !== "conflict" && row.action !== "unchanged").length ?? 0;
   return <section className="panel preview-card sharepoint-import" aria-label="Importar desde SharePoint">
     <div className="panel-header">
-      <div><h2 className="panel-title">Excel de SharePoint</h2><div className="panel-meta">Lectura del archivo original · Cambios guardados en la aplicación</div></div>
+      <div><h2 className="panel-title">Excel de SharePoint</h2><div className="panel-meta">Fuente oficial del resumen · Archivo original en solo lectura</div></div>
       <button type="button" className="primary-button" disabled={!status?.configured || busy} onClick={() => { setFile(null); setPreview(null); setChoices({}); void run("preview", null, {}); }}>
         {busy ? "Procesando…" : "Consultar cambios"}
       </button>
     </div>
-    <p>Consulta el archivo antes de importar. Las entregas y modificaciones locales se conservan; las diferencias que requieren una decisión quedan pendientes.</p>
+    <p>El apartado RESUMEN del Excel es la fuente oficial del resumen de la aplicación. Los registros creados desde la aplicación se conservan en el inventario, pero no alteran esos totales.</p>
     {status ? <p>{status.configured ? "Conexión configurada. Consulta el archivo para verificar el acceso." : "Pendiente de configurar: el administrador de Microsoft 365 debe autorizar la lectura de este archivo y completar la conexión del servidor."} {<a href={status.sourceUrl} target="_blank" rel="noreferrer">Abrir Excel de origen</a>}</p> : <p>Comprobando conexión…</p>}
     <div className="panel-actions sharepoint-actions">
       <input ref={fileInput} className="file-input" type="file" accept=".xlsx" onChange={(event) => {
@@ -94,8 +94,8 @@ export default function SharePointImport({ requestAccess, onImported }: {
         <tbody>{preview.summary.map((group) => <tr key={group.type}><td>{group.type}</td><td>{group.detail}</td><td>{group.summary ?? "Sin dato"}</td></tr>)}</tbody>
         <tfoot><tr><th>Total</th><td>{preview.plan.length}</td><td>{preview.summaryTotal ?? "Sin dato"}</td></tr></tfoot>
       </table></div>
-      {!preview.summaryMatches ? <p role="alert">La tabla dinámica de Excel no coincide con su detalle. La importación usa el detalle de Inventario. El archivo original permanece intacto.</p> : null}
-      {preview.absent.length ? <p>Items que ya no aparecen en Excel: {preview.absent.join(", ")}. Sus equipos se conservarán en la aplicación.</p> : null}
+      {!preview.summaryMatches ? <p role="alert">El RESUMEN del Excel no coincide con su detalle. La aplicación mantendrá las cantidades visibles en RESUMEN y dejará el archivo original intacto.</p> : null}
+      {preview.absent.length ? <p>Items que ya no aparecen en Excel: {preview.absent.join(", ")}. Sus equipos se conservarán en el inventario, fuera del resumen oficial.</p> : null}
       {preview.warnings.length ? <details><summary>{preview.warnings.length} fechas para revisar</summary><ul>{preview.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></details> : null}
       <h3>Revisión de los equipos</h3>
       <p>Al vincular por primera vez se conservan los valores de la aplicación. El Item del Excel identifica el vínculo: si renumeran los Items, será necesario revisarlo. Confirma «Crear equipo nuevo» únicamente si no está registrado.</p>
@@ -121,7 +121,7 @@ export default function SharePointImport({ requestAccess, onImported }: {
       </table></div>
       <div className="panel-actions sharepoint-actions">
         {dirty ? <button className="secondary-button" type="button" disabled={busy} onClick={() => void run("preview")}>Revisar los vínculos seleccionados</button> : null}
-        <button className="primary-button" type="button" disabled={busy || dirty || !pending} onClick={() => void run("apply")}>Aplicar {pending} cambios a la aplicación</button>
+        <button className="primary-button" type="button" disabled={busy || dirty} onClick={() => void run("apply")}>Actualizar resumen y aplicar {pending} cambios</button>
       </div>
     </> : null}
   </section>;

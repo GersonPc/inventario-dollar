@@ -102,6 +102,18 @@ type InventoryResponse = {
   equipment: Equipment[];
   stores: Store[];
   deviceModels: DeviceModelProfile[];
+  sourceSummary: {
+    deviceType: string;
+    units: number;
+    warehouse: number;
+    delivered: number;
+    assignedToStore: number;
+  }[];
+  sourceState: {
+    rowCount: number;
+    summaryTotal: number;
+    synchronizedAt: string;
+  } | null;
 };
 
 type EquipmentForm = {
@@ -419,13 +431,20 @@ export function InventoryApp() {
     });
   }, [conditionFilter, data?.equipment, deliveryFilter, kindFilter, query, typeFilter]);
 
+  const sourceSummary = data?.sourceSummary;
+  const equipmentRows = data?.equipment;
   const deviceTypeSummary = useMemo(() => {
+    if (sourceSummary?.length) {
+      return [...sourceSummary].sort((a, b) =>
+        a.deviceType.localeCompare(b.deviceType, "es", { sensitivity: "base" }),
+      );
+    }
     const groups = new Map<
       string,
       { deviceType: string; units: number; warehouse: number; delivered: number }
     >();
 
-    for (const item of data?.equipment ?? []) {
+    for (const item of equipmentRows ?? []) {
       if (item.itemKind !== "equipment") continue;
       const deviceType = item.deviceType.trim() || "Sin tipo asignado";
       const key = normalized(deviceType) || "sin tipo asignado";
@@ -444,7 +463,7 @@ export function InventoryApp() {
     return Array.from(groups.values()).sort((a, b) =>
       a.deviceType.localeCompare(b.deviceType, "es", { sensitivity: "base" }),
     );
-  }, [data?.equipment]);
+  }, [equipmentRows, sourceSummary]);
 
   const deviceSummaryStats = useMemo(() => {
     const total = deviceTypeSummary.reduce((sum, item) => sum + item.units, 0);
@@ -456,11 +475,13 @@ export function InventoryApp() {
       (sum, item) => sum + item.delivered,
       0,
     );
-    const assignedToStore = (data?.equipment ?? []).reduce(
-      (sum, item) =>
-        item.itemKind === "equipment" && item.storeId ? sum + item.quantity : sum,
-      0,
-    );
+    const assignedToStore = sourceSummary?.length
+      ? sourceSummary.reduce((sum, item) => sum + item.assignedToStore, 0)
+      : (equipmentRows ?? []).reduce(
+        (sum, item) =>
+          item.itemKind === "equipment" && item.storeId ? sum + item.quantity : sum,
+        0,
+      );
     return {
       types: deviceTypeSummary.length,
       total,
@@ -469,7 +490,7 @@ export function InventoryApp() {
       assignedToStore,
       withoutStore: total - assignedToStore,
     };
-  }, [data?.equipment, deviceTypeSummary]);
+  }, [deviceTypeSummary, equipmentRows, sourceSummary]);
 
   const deviceCatalogGroups = useMemo(() => {
     const profiles = new Map(
@@ -1870,8 +1891,8 @@ export function InventoryApp() {
           {view === "summary" ? (
             <>
               <section className="stats-grid summary-stats-grid" aria-label="Indicadores del resumen de dispositivos">
-                <Stat label="Tipos de equipo" value={deviceSummaryStats.types} foot="Categorías registradas" />
-                <Stat label="Total de dispositivos" value={deviceSummaryStats.total} foot="Unidades contabilizadas" />
+                <Stat label="Tipos de equipo" value={deviceSummaryStats.types} foot={sourceSummary?.length ? "Categorías del Excel" : "Categorías registradas"} />
+                <Stat label="Total de dispositivos" value={deviceSummaryStats.total} foot={sourceSummary?.length ? "Unidades según Excel" : "Unidades contabilizadas"} />
                 <Stat label="En bodega" value={deviceSummaryStats.warehouse} foot="Pendientes de entrega" />
                 <Stat label="Entregados" value={deviceSummaryStats.delivered} foot="Asignados fuera de bodega" />
               </section>
@@ -1882,7 +1903,7 @@ export function InventoryApp() {
                     <div>
                       <h2 className="panel-title">Dispositivos por tipo</h2>
                       <div className="panel-meta">
-                        {deviceTypeSummary.length} {deviceTypeSummary.length === 1 ? "tipo registrado" : "tipos registrados"}
+                        {data?.sourceSummary?.length ? "Fuente oficial: RESUMEN del Excel" : `${deviceTypeSummary.length} ${deviceTypeSummary.length === 1 ? "tipo registrado" : "tipos registrados"}`}
                       </div>
                     </div>
                     <div className="panel-actions summary-report-actions">
@@ -1942,7 +1963,7 @@ export function InventoryApp() {
                   ) : (
                     <EmptyState
                       title="Aún no hay dispositivos para resumir"
-                      text="Los tipos y sus cantidades aparecerán aquí cuando registres o importes el primer equipo. Los materiales no se incluyen en este resumen."
+                      text="Los tipos y sus cantidades aparecerán aquí al cargar el Excel principal."
                     />
                   )}
                 </section>
